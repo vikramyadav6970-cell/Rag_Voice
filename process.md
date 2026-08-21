@@ -13,13 +13,20 @@ Keep entries short. Newest at the top.
 
 - **Current phase**: Phase 4 — Guardrails
 - **Blocking issue**: none
-- **Next immediate task**: Task 4.1 — Input guardrails (`backend/src/guardrails.py`)
+- **Next immediate task**: Task 4.2 — Retrieval confidence + grounding/hallucination checks (`backend/src/guardrails.py`)
 - **Dataset subset in use**: Hindi (`hin`) + Tamil (`tam`), 5,536 points indexed in Qdrant Cloud (`msmarco_indic_rag`)
 - **Deployed?**: no
 
 ---
 
 ## LOG (append new entries at the top, most recent first)
+
+### 2026-08-22 — Agent (Task 4.1)
+- What was done: Built input guardrails at `backend/src/guardrails.py` implementing `is_unsafe_input` (zero-latency regex heuristics + LLM-as-judge moderation) and `is_offtopic` (pattern matching on conversational spam + domain classification for MSMARCO-XI general knowledge scope). Wired `validate_input_query` directly into `harness.py`'s `step_validate_input`, short-circuiting unsafe or out-of-domain queries before retrieval/generation. Added unit tests in `backend/tests/test_guardrails.py`.
+- Files changed: [backend/src/guardrails.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/src/guardrails.py), [backend/src/harness.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/src/harness.py), [backend/tests/test_guardrails.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/tests/test_guardrails.py), [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md).
+- What was verified/tested: Ran `pytest backend/tests/` — **25/25 tests passed** confirming that malicious/jailbreak queries are flagged, greetings/spam are classified as offtopic, and unsafe inputs trigger immediate pipeline short-circuiting without retrieval or generation costs.
+- Next task: Task 4.2 — Retrieval confidence + grounding/hallucination checks (`backend/src/guardrails.py`).
+
 
 ### 2026-08-22 — Agent (Task 3.2)
 - What was done: Built full pipeline orchestration harness at `backend/src/harness.py` implementing an explicit Python Async State Machine (`RAGPipelineHarness`). Designed isolated sub-steps: `transcribe_audio` -> `validate_input` (Phase 4 hook) -> `retrieve_context` -> `check_retrieval_confidence` (Phase 4 hook) -> `generate_answer` -> `check_grounding` (Phase 4 hook) -> `return_result`. Added per-step error fallbacks, shared latency telemetry mapping (`stt_ms`, `retrieval_ms`, `generation_ms`, `retrieval_to_output_ms`, `total_pipeline_ms`), and wired it into `backend/src/main.py` for both voice (`/api/ask`) and text (`/api/ask/text`). Added unit tests in `backend/tests/test_harness.py`.

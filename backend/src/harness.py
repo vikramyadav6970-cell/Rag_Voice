@@ -31,10 +31,12 @@ from dotenv import load_dotenv
 # Ensure backend root is on sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from src.generation import generate
+from src.guardrails import validate_input_query
 from src.retrieval import retrieve
 from src.stt import transcribe
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+
 
 
 @dataclass
@@ -275,6 +277,8 @@ class RAGPipelineHarness:
 
 # Default Singleton Pipeline Instance
 pipeline = RAGPipelineHarness()
+pipeline.input_guardrail_hook = validate_input_query
+
 
 
 async def run_rag_pipeline(
