@@ -66,6 +66,8 @@ unit — treat that as your baseline chunk, not your only chunk.
 - Deadline: **August 22, 2026, 11:59 PM**. No resubmissions.
 - Submission needs: GitHub repo link, live working link, 90s team/process video, full demo
   video, both videos posted on Instagram AND X by every team member with `#RAGInGoa`.
-- Given the time budget, we are using a **representative subset** of the 55GB dataset (not the
-  full thing) for the working demo — see `process.md` for which languages/row counts were
-  actually indexed. This is a deliberate, documented scope cut, not an oversight.
+- **Dataset subset decision (Task 0.3)**:
+  - Selected Languages: **Hindi (`hin`)** and **Tamil (`tam`)** (with Bengali `ben` as optional extension).
+  - Target Volume: **2,500 - 5,000 total chunks** sampled from the `is_selected=1` ground truth passages and diverse queries.
+  - Rationale: Fully tests multilingual hybrid retrieval and chunking strategies (native, fixed, semantic, hierarchical) across Indic languages while fitting within Qdrant free-tier and enabling rapid ingestion and sub-200ms retrieval benchmarking.
+

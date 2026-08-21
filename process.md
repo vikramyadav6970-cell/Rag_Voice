@@ -11,15 +11,36 @@ Keep entries short. Newest at the top.
 
 ## STATUS SNAPSHOT (always keep this section current — overwrite, don't append)
 
-- **Current phase**: Phase 0 — Setup
+- **Current phase**: Phase 1 — Data Ingestion & Chunking
 - **Blocking issue**: none
-- **Next immediate task**: Task 0.3 — Backend venv + base dependencies
-- **Dataset subset in use**: not yet decided
+- **Next immediate task**: Task 1.1 — Chunking strategies module (`backend/src/chunking.py`)
+- **Dataset subset in use**: Hindi (`hin`) + Tamil (`tam`), 2,500 - 5,000 chunks
 - **Deployed?**: no
 
 ---
 
 ## LOG (append new entries at the top, most recent first)
+
+### 2026-08-22 — Agent (Task 0.3)
+- What was done: Confirmed dataset access to `ai4bharat/MSMARCO-XI` using `fastparquet` and `huggingface_hub` streaming with `HF_TOKEN`. Inspected schema, column metadata, and sample records for Hindi (`hin`). Determined dataset subset size and strategy. Cleaned up scratch exploration files.
+- Files changed: [backend/scripts/inspect_dataset.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/scripts/inspect_dataset.py), [context.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/context.md), [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md).
+- What was verified/tested: Successfully streamed schema and rows from `datasets/ai4bharat/MSMARCO-XI/validation/hinval.parquet` (97,941 rows in validation split, 778,638 in train split) without local multi-GB disk download. Inspected `query_id`, `query`, `Answer`, `Eng_Query`, `Eng_Answer`, `passages.Translated_passages`, `passages.English_passages`, `passages.is_selected`.
+- Output snippet:
+  ```
+  Total row count for hin (validation): 97,941 rows
+  Columns available (17): ['source_lang', 'target_lang', 'Answer', 'query_id', 'query_type', 'Eng_Query', 'Eng_Answer', 'query', 'meta.*', 'passages.English_passages', 'passages.Translated_passages', 'passages.is_selected']
+  --- Sample #1 ---
+  Query ID     : 1102432
+  Query (Eng)  : . what is a corporation?
+  Query (HIN)  : कॉर्पोरेशन क्या है?
+  Answer       : निगम एक कंपनी या लोगों का समूह होता है जो एक एकल इकाई के रूप में कार्य करने के लिए अधिकृत होता है और कानून में इस प्रकार से मान्यता प्राप्त होती है।
+  Passages Count: 10
+  Passage #1   : एक कंपनी एक विशिष्ट देश में निगमित होती है, अक्सर उस देश के एक छोटे उपसमूह...
+  is_selected  : [0, 0, 0, 0, 0, 1, 0, 0, 0, 0]
+  ```
+- Decisions made: Selected Hindi (`hin`) + Tamil (`tam`) subset (~2,500–5,000 chunks) focusing on ground truth selected passages + distractor context to balance multilingual representation, rapid ingestion, and vector DB quota limits.
+- Next task: Task 1.1 — Chunking strategies module (`backend/src/chunking.py`).
+
 
 ### 2026-08-22 — User & Agent (Task 0.2)
 - What was done: Configured credentials in `backend/.env` for Sarvam AI, Qdrant Cloud (`aws.cloud.qdrant.io`), and xAI with model `grok-2-mini` and base URL `https://api.x.ai/v1`. Updated `context.md` with active stack providers.
