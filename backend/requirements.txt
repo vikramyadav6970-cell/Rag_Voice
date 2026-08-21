@@ -12,6 +12,8 @@ sentence-transformers>=3.3.0
 torch>=2.4.0
 numpy>=1.26.0
 tiktoken>=0.8.0
+rank-bm25>=0.2.2
+
 
 # LLM Generation & Orchestration
 openai>=1.60.0

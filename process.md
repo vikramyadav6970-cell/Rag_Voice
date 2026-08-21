@@ -11,15 +11,29 @@ Keep entries short. Newest at the top.
 
 ## STATUS SNAPSHOT (always keep this section current — overwrite, don't append)
 
-- **Current phase**: Phase 1 — Data Ingestion & Chunking
+- **Current phase**: Phase 2 — Speech-to-Text
 - **Blocking issue**: none
-- **Next immediate task**: Task 1.3 — Retrieval service (hybrid + strategy comparison) (`backend/src/retrieval.py`)
+- **Next immediate task**: Task 2.1 — Sarvam STT client (`backend/src/stt.py`)
 - **Dataset subset in use**: Hindi (`hin`) + Tamil (`tam`), 5,536 points indexed in Qdrant Cloud (`msmarco_indic_rag`)
 - **Deployed?**: no
 
 ---
 
 ## LOG (append new entries at the top, most recent first)
+
+### 2026-08-22 — Agent (Task 1.3)
+- What was done: Built async retrieval service at `backend/src/retrieval.py` implementing multilingual hybrid search (dense embeddings via `bge-m3` + sparse BM25 with Indic Unicode tokenization + Reciprocal Rank Fusion), hierarchical parent context resolution for child chunks, and sub-step latency breakdown telemetry (`embed_ms`, `dense_search_ms`, `sparse_search_ms`, `fusion_ms`, `parent_resolution_ms`, `total_retrieval_ms`). Built evaluation script `backend/scripts/compare_strategies.py` running comparative queries across all 4 strategies in Hindi and Tamil. Added unit tests in `backend/tests/test_retrieval.py`.
+- Files changed: [backend/src/retrieval.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/src/retrieval.py), [backend/scripts/compare_strategies.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/scripts/compare_strategies.py), [backend/tests/test_retrieval.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/tests/test_retrieval.py), [backend/requirements.txt](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/requirements.txt), [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md).
+- What was verified/tested:
+  - Ran `pytest backend/tests/` — **10/10 tests passed** covering Indic tokenization, RRF rank calculations, empty query handling, and live hybrid retrieval from Qdrant Cloud.
+  - Ran `backend/scripts/compare_strategies.py` across Hindi and Tamil queries:
+    - `passage_native`: Balanced paragraph context.
+    - `fixed_size`: Good granular coverage with overlap.
+    - `semantic`: High topical purity on sentence-cut boundaries.
+    - `hierarchical_child`: Precision vector matching on child chunks with full parent context resolved dynamically.
+  - Granular latency verified: Query embedding (~120ms), Dense Qdrant search (~280ms), Sparse BM25 (~1.2ms), RRF Fusion (~0.02ms).
+- Next task: Task 2.1 — Sarvam STT client (`backend/src/stt.py`).
+
 
 ### 2026-08-22 — Agent (Task 1.2)
 - What was done: Built offline batch ingestion pipeline at `backend/scripts/ingest.py`. Connected to Qdrant Cloud cluster, created `msmarco_indic_rag` collection with 1024-d Cosine vectors, and created payload indexes on `language`, `strategy`, `source_doc_id`, `parent_id`, and `query_id`. Streamed validation splits for Hindi (`hin`) and Tamil (`tam`), processed all passages across all 4 chunking strategies, computed normalized dense embeddings via `BAAI/bge-m3`, and idempotently upserted points with UUID5 deterministic IDs.
