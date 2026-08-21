@@ -130,14 +130,13 @@ async def is_offtopic(text: str, domain_description: str = DEFAULT_DOMAIN_DESCRI
 def is_low_confidence_retrieval(
     results: List[Dict[str, Any]],
     score_threshold: float = 0.012,
-    dense_threshold: float = 0.28,
+    dense_threshold: float = 0.52,
 ) -> bool:
     """Check whether retrieved results exhibit low relevance confidence.
 
     Empirical Threshold Rationale:
-    In Reciprocal Rank Fusion (rrf_k=60), a top-1 hit from either dense or sparse yields 1/61 (~0.0164),
-    and fused top-1 yields ~0.0328. Hits with RRF score < 0.012 or dense similarity < 0.28 indicate
-    tangential or weak semantic alignment with out-of-domain queries.
+    In Reciprocal Rank Fusion (rrf_k=60), a top-1 hit yields ~0.0328. Hits with dense similarity < 0.52
+    represent tangential semantic noise for queries outside the indexed factual knowledge base.
 
     Returns:
         True if low confidence (should refuse/skip generation), False if confident.
@@ -149,7 +148,7 @@ def is_low_confidence_retrieval(
     top_rrf_score = float(top_hit.get("score", 0.0) or 0.0)
     top_dense_score = top_hit.get("dense_score")
 
-    # If dense score is present, check cosine similarity threshold
+    # If dense score is present, check cosine similarity threshold (0.52)
     if top_dense_score is not None and float(top_dense_score) < dense_threshold:
         return True
 
@@ -158,6 +157,7 @@ def is_low_confidence_retrieval(
         return True
 
     return False
+
 
 
 async def is_grounded(answer: str, context_chunks: List[Dict[str, Any]]) -> bool:

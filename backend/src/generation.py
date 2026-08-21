@@ -131,13 +131,14 @@ def _extractive_grounded_fallback(query: str, context_chunks: List[Dict[str, Any
             best_score = matches
             best_passage = text
 
-    if not best_passage:
-        best_passage = context_chunks[0].get("resolved_context") or context_chunks[0].get("text", "")
+    if not best_passage or (best_score <= 0 and float(context_chunks[0].get("dense_score", 0.0) or 0.0) < 0.55):
+        return REFUSAL_PHRASE_EN if _is_english_query(query) else REFUSAL_PHRASE_HI
 
     # Clean and return concise grounded passage summary
     sentences = re.split(r"[।\n.!?]+", best_passage)
     concise = " ".join(s.strip() for s in sentences if s.strip())
     concise_summary = concise[:320].strip() + ("..." if len(concise) > 320 else "")
+
 
     # If user queried in English, translate the Indic passage to English
     if _is_english_query(query):
