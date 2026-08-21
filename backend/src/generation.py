@@ -69,6 +69,43 @@ def format_context_for_prompt(context_chunks: List[Dict[str, Any]]) -> str:
     return "\n\n".join(formatted_parts)
 
 
+def _is_english_query(text: str) -> bool:
+    """Check if query is primarily in English / Latin script."""
+    latin_chars = sum(1 for c in text if 'a' <= c.lower() <= 'z')
+    total_alpha = sum(1 for c in text if c.isalpha())
+    return (latin_chars / max(total_alpha, 1)) > 0.6
+
+
+def _translate_indic_to_english(indic_text: str) -> str:
+    """Translate Indic (Hindi/Tamil) grounded passage into fluent English via Sarvam AI."""
+    api_key = os.getenv("SARVAM_API_KEY")
+    if not api_key:
+        return indic_text
+    try:
+        # Determine source script: Devanagari (0900-097F) or Tamil (0B80-0BFF)
+        has_tamil = any(0x0B80 <= ord(c) <= 0x0BFF for c in indic_text)
+        src_lang = "ta-IN" if has_tamil else "hi-IN"
+        with httpx.Client(timeout=3.0) as client:
+            resp = client.post(
+                "https://api.sarvam.ai/translate",
+                headers={"api-subscription-key": api_key.strip()},
+                json={
+                    "input": indic_text[:450],
+                    "source_language_code": src_lang,
+                    "target_language_code": "en-IN",
+                    "mode": "formal",
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                translated = data.get("translated_text", "").strip()
+                if translated:
+                    return translated
+    except Exception as exc:
+        print(f"[Generation] Translation warning: {exc}")
+    return indic_text
+
+
 def _extractive_grounded_fallback(query: str, context_chunks: List[Dict[str, Any]]) -> str:
     """Deterministic grounded extractive fallback for offline/no-credit runtime scenarios.
 
@@ -100,7 +137,14 @@ def _extractive_grounded_fallback(query: str, context_chunks: List[Dict[str, Any
     # Clean and return concise grounded passage summary
     sentences = re.split(r"[।\n.!?]+", best_passage)
     concise = " ".join(s.strip() for s in sentences if s.strip())
-    return concise[:320].strip() + ("..." if len(concise) > 320 else "")
+    concise_summary = concise[:320].strip() + ("..." if len(concise) > 320 else "")
+
+    # If user queried in English, translate the Indic passage to English
+    if _is_english_query(query):
+        return _translate_indic_to_english(concise_summary)
+
+    return concise_summary
+
 
 
 @retry(

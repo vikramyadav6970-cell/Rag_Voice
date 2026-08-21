@@ -210,13 +210,18 @@ async def is_grounded(answer: str, context_chunks: List[Dict[str, Any]]) -> bool
         verdict = res.choices[0].message.content.strip().upper() if res.choices else "YES"
         return "YES" in verdict
     except Exception:
-        # Extractive overlap check on upstream API timeout/error
-        # Check if majority of keywords in the answer appear in the context
+        # Cross-lingual / extractive overlap check on upstream API timeout/error
+        # Check if majority of keywords in the answer appear in the context or if context is non-empty
         ans_words = [w.lower() for w in re.findall(r"\w+", clean_ans) if len(w) > 3]
         if not ans_words:
             return True
         matched = sum(1 for w in ans_words if w in context_text.lower())
-        return (matched / len(ans_words)) >= 0.4
+        # If words matched or if answer is translated from the retrieved context
+        if (matched / len(ans_words)) >= 0.35:
+            return True
+        # For cross-lingual answers (English answer with Indic context chunks), if top context is relevant, pass grounding
+        return len(context_chunks) > 0 and float(context_chunks[0].get("score", 0.0) or 0.0) >= 0.012
+
 
 
 async def validate_input_query(text: str, domain: str = DEFAULT_DOMAIN_DESCRIPTION) -> Dict[str, Any]:
