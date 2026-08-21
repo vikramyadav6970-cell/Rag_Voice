@@ -13,13 +13,20 @@ Keep entries short. Newest at the top.
 
 - **Current phase**: Phase 0 — Setup
 - **Blocking issue**: none
-- **Next immediate task**: Task 0.2 — API account setup & Task 0.3 — Backend venv + base dependencies
+- **Next immediate task**: Task 0.3 — Backend venv + base dependencies
 - **Dataset subset in use**: not yet decided
 - **Deployed?**: no
 
 ---
 
 ## LOG (append new entries at the top, most recent first)
+
+### 2026-08-22 — User & Agent (Task 0.2)
+- What was done: Configured credentials in `backend/.env` for Sarvam AI, Qdrant Cloud (`aws.cloud.qdrant.io`), and xAI with model `grok-2-mini` and base URL `https://api.x.ai/v1`. Updated `context.md` with active stack providers.
+- Files changed: [backend/.env](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/.env), [backend/.env.example](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/.env.example), [context.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/context.md), [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md).
+- Decisions made: Selected `grok-2-mini` via OpenAI-compatible endpoint (`https://api.x.ai/v1`) for generation due to fast time-to-first-token and low inference latency.
+- Next task: Task 0.3 — Backend venv + base dependencies.
+
 
 ### 2026-08-22 — Agent (Task 0.1)
 - What was done: Initialized git repository on branch `main`, scaffolded `/backend/src`, `/backend/scripts`, `/frontend/src`, created `.gitignore`, `backend/requirements.txt`, `backend/.env.example`, `frontend/package.json`, `frontend/.env.example`, and baseline frontend Vite/React setup. Created initial commit `phase0: repo scaffolding`.

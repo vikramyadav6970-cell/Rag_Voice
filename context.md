@@ -43,22 +43,23 @@ unit — treat that as your baseline chunk, not your only chunk.
 |---|---|---|---|
 | STT | Sarvam (Saaras v3) | Indic-language + code-mix native, streaming, sub-150ms TTFT | ElevenLabs — weaker on Indic/code-mixed audio |
 | Embeddings | bge-m3 (multilingual) | Covers all dataset languages, strong multilingual retrieval | English-only models (e5-small etc.) — wrong fit for Indic content |
-| Vector DB | Qdrant (self-hosted / Cloud free tier) | Metadata filtering, hybrid search, persistence, no cross-region latency hop | FAISS-only (no persistence/filtering); Pinecone (adds network hop into the 200ms budget) |
-| Generation | Fast-inference API (e.g. Groq-hosted small model) or small self-hosted model | Needs to fit inside the latency budget | Large hosted frontier model — too slow + costly for this budget |
-| Harness | LangGraph (or custom FastAPI state machine if team is more comfortable) | Explicit nodes, retries, structured state | Raw prompt-in/text-out call — explicitly disallowed by spec |
+| Vector DB | Qdrant Cloud | Managed AWS instance, metadata filtering, hybrid search, persistence | FAISS-only (no persistence/filtering); Pinecone |
+| Generation | xAI `grok-2-mini` (OpenAI-compatible API) | Ultra-fast TTFT, low latency, strong multilingual reasoning | Large slow models exceeding latency budget |
+| Harness | LangGraph (or FastAPI state machine) | Explicit nodes, retries, structured state | Raw prompt-in/text-out call — disallowed by spec |
 | Backend | Python (FastAPI) | Best library support for RAG/embeddings/vector DB clients | — |
-| Frontend | React (Vite) | Explicit requirement | Next.js — not required here, Vite is faster to scaffold under time pressure |
+| Frontend | React (Vite) | Explicit requirement | Next.js — not required here |
 | Deployment | Backend: Railway/Render/Fly.io. Frontend: Vercel/Netlify | Fast to stand up, free tiers exist | — |
 
 **Update this table if a decision changes — don't leave it stale.**
 
 ## Team / links (fill in)
 
-- GitHub repo: `<add link>`
-- Live deployed link: `<add link>`
-- Sarvam API key holder / where stored: `<add>`
-- Vector DB instance URL: `<add>`
-- Generation API provider + key holder: `<add>`
+- GitHub repo: Local Git initialized (`main`)
+- Live deployed link: `<pending deployment>`
+- Sarvam API: Configured in `backend/.env` (Saaras v3)
+- Vector DB instance URL: Qdrant Cloud (`aws.cloud.qdrant.io` configured in `backend/.env`)
+- Generation API provider + model: xAI (`grok-2-mini` configured in `backend/.env`)
+
 
 ## Hard constraints
 
