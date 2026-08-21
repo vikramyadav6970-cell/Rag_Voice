@@ -8,11 +8,12 @@ import {
   ChevronDown, 
   ChevronUp, 
   Volume2, 
+  VolumeX,
   Database,
   CheckCircle2,
   AlertCircle,
-  FileCode,
-  RotateCcw
+  RotateCcw,
+  Mic
 } from 'lucide-react';
 
 /**
@@ -37,21 +38,21 @@ export default function ConsoleTelemetryPanel({
     { key: 'llm', label: '5. LLM Synthesis', desc: 'Grounded Answer Generation' },
   ];
 
-  // If IDLE, show clean empty state waiting for query
+  // 1. IDLE STATE
   if (uiState === 'idle') {
     return (
       <div className="console-panel p-6 sm:p-8 text-center text-[#95A1B2]">
         <div className="flex items-center justify-center gap-2 mb-2 font-mono text-xs text-[#606E80] uppercase tracking-wider">
-          <Terminal className="w-3.5 h-3.5" /> Instrument Console Idle
+          <Terminal className="w-3.5 h-3.5" /> Instrument Console Active
         </div>
         <p className="text-sm max-w-md mx-auto">
-          Awaiting audio stream from instrument dial above or test query preset below.
+          Awaiting voice stream from instrument dial above or test query preset below.
         </p>
       </div>
     );
   }
 
-  // If LOADING / PROCESSING, show live pipeline stepper
+  // 2. LOADING / PROCESSING PIPELINE
   if (uiState === 'uploading' || uiState === 'waiting-for-answer') {
     return (
       <div className="console-panel p-6 sm:p-8">
@@ -63,7 +64,6 @@ export default function ConsoleTelemetryPanel({
           <span className="font-mono text-xs text-[#95A1B2]">Live Telemetry</span>
         </div>
 
-        {/* 5-Stage Step Stepper */}
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 font-mono text-xs">
           {pipelineStages.map((st, idx) => {
             const isCurrent = idx === activeStepIndex;
@@ -73,9 +73,9 @@ export default function ConsoleTelemetryPanel({
                 key={st.key}
                 className={`p-3 rounded-lg border transition-all ${
                   isCurrent 
-                    ? 'bg-[rgba(201,162,39,0.1)] border-[#C9A227] text-[#C9A227] shadow-sm'
+                    ? 'bg-[rgba(201,162,39,0.12)] border-[#C9A227] text-[#C9A227] shadow-sm'
                     : isDone
-                    ? 'bg-[rgba(62,142,140,0.1)] border-[rgba(62,142,140,0.4)] text-[#72C0BE]'
+                    ? 'bg-[rgba(62,142,140,0.12)] border-[rgba(62,142,140,0.4)] text-[#72C0BE]'
                     : 'bg-[#141C27] border-[rgba(237,234,227,0.05)] text-[#606E80]'
                 }`}
               >
@@ -92,7 +92,7 @@ export default function ConsoleTelemetryPanel({
     );
   }
 
-  // If GUARDRAIL REFUSED, show intentional coral-red alert state (RESERVED COLOR)
+  // 3. GUARDRAIL REFUSED (RESERVED CORAL-RED #D65A4A)
   if (uiState === 'guardrail-refused') {
     return (
       <div className="console-panel p-6 sm:p-8 border-[#D65A4A]/50 bg-[#160E10]">
@@ -130,7 +130,7 @@ export default function ConsoleTelemetryPanel({
     );
   }
 
-  // If ERROR STATE
+  // 4. ERROR STATE
   if (uiState === 'error') {
     return (
       <div className="console-panel p-6 sm:p-8 border-[#D65A4A]/40 bg-[#160E10]">
@@ -155,7 +155,42 @@ export default function ConsoleTelemetryPanel({
     );
   }
 
-  // If SHOWING ANSWER (SUCCESSFUL GROUNDED SYNTHESIS)
+  // Check if Audio was unclear / empty transcript
+  const isAudioUnclear = !resultData?.transcript?.trim() || 
+    (resultData?.answer && resultData.answer.toLowerCase().includes("could not understand the audio"));
+
+  if (isAudioUnclear) {
+    return (
+      <div className="console-panel p-6 sm:p-8 border-[rgba(201,162,39,0.3)] bg-[#141820]">
+        <div className="flex items-center justify-between border-b border-[rgba(237,234,227,0.08)] pb-3 mb-4">
+          <div className="flex items-center gap-2 text-[#C9A227] font-mono text-xs font-bold">
+            <VolumeX className="w-4 h-4" /> Audio Utterance Unclear
+          </div>
+          <button onClick={onReset} className="font-mono text-xs text-[#95A1B2] hover:text-[#EDEAE3] cursor-pointer flex items-center gap-1">
+            <RotateCcw className="w-3 h-3" /> Reset
+          </button>
+        </div>
+        <div className="p-4 rounded-lg bg-[#0E1520] border border-[rgba(237,234,227,0.06)] mb-4 text-center">
+          <h3 className="font-serif-display text-base font-bold text-[#EDEAE3] mb-1">
+            No Speech Transcribed
+          </h3>
+          <p className="text-xs text-[#95A1B2] max-w-md mx-auto">
+            The microphone audio stream was silent or too quiet. Please speak closer to your microphone or use the text input below.
+          </p>
+        </div>
+        <div className="flex justify-center">
+          <button
+            onClick={onReset}
+            className="px-4 py-2 rounded-lg bg-[#C9A227] hover:bg-[#DBB434] text-xs font-mono font-bold text-[#0B0F14] flex items-center gap-1.5 cursor-pointer shadow-md"
+          >
+            <Mic className="w-3.5 h-3.5" /> Re-record Question
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 5. SUCCESSFUL GROUNDED SYNTHESIS STATE
   return (
     <div className="console-panel p-6 sm:p-8 space-y-6">
       
@@ -287,14 +322,12 @@ export default function ConsoleTelemetryPanel({
                     </button>
                   </div>
 
-                  {/* Collapsed Snippet */}
                   {!isExpanded && (
                     <p className="mt-1.5 text-xs text-[#95A1B2] line-clamp-1 indic-text">
                       {src.text}
                     </p>
                   )}
 
-                  {/* Expanded Full Details */}
                   {isExpanded && (
                     <div className="mt-2.5 pt-2.5 border-t border-[rgba(237,234,227,0.06)] space-y-2 text-[#EDEAE3]">
                       <div>
