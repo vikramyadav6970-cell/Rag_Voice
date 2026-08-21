@@ -49,6 +49,7 @@ class PipelineContext:
     """Explicit state container flowing through pipeline execution steps."""
     # Inputs
     audio_bytes: Optional[bytes] = None
+    audio_filename: str = "audio.wav"
     query: str = ""
     language_hint: Optional[str] = None
     strategy: Optional[str] = None
@@ -95,7 +96,9 @@ class RAGPipelineHarness:
             stt_res = await transcribe(
                 audio_bytes=ctx.audio_bytes,
                 language_hint=ctx.language_hint,
+                filename=ctx.audio_filename,
             )
+
             ctx.timings_ms["stt_ms"] = stt_res.get("latency_ms", round((time.perf_counter() - t_0) * 1000, 2))
 
             if stt_res.get("success") and stt_res.get("text"):
@@ -104,6 +107,8 @@ class RAGPipelineHarness:
                 ctx.detected_language = stt_res.get("detected_language") or ctx.language_hint
             else:
                 # Specific graceful fallback on transcription failure
+                ctx.transcript = ""
+                ctx.query = ""
                 ctx.errors["stt"] = stt_res.get("error") or "Speech recognition returned empty transcript."
                 ctx.answer = "Could not understand the audio clearly. Please try speaking again."
                 ctx.success = False
@@ -184,8 +189,9 @@ class RAGPipelineHarness:
     # --- Step 4: Retrieval Confidence Check [Phase 4 Hook] ---
     async def step_check_retrieval_confidence(self, ctx: PipelineContext) -> PipelineContext:
         """Step 4: Verify retrieval score quality before invoking LLM generation."""
-        if ctx.stop_early:
+        if ctx.stop_early or not ctx.query:
             return ctx
+
 
         t_0 = time.perf_counter()
         try:
@@ -299,6 +305,7 @@ pipeline.grounding_guardrail_hook = check_grounding_hook
 
 async def run_rag_pipeline(
     audio_bytes: Optional[bytes] = None,
+    audio_filename: str = "audio.wav",
     query: str = "",
     language_hint: Optional[str] = None,
     strategy: Optional[str] = None,
@@ -307,12 +314,14 @@ async def run_rag_pipeline(
     """Convenience helper to run the RAG pipeline harness and return standard dict payload."""
     ctx = PipelineContext(
         audio_bytes=audio_bytes,
+        audio_filename=audio_filename,
         query=query,
         language_hint=language_hint,
         strategy=strategy,
         top_k=top_k,
     )
     result_ctx = await pipeline.execute(ctx)
+
 
     # Format simplified source citations
     sources = []

@@ -151,11 +151,13 @@ async def ask_voice_query(
     # 3. Execute End-to-End Voice RAG Pipeline
     pipeline_result = await run_rag_pipeline(
         audio_bytes=audio_bytes,
+        audio_filename=filename,
         language_hint=language_hint,
         strategy=strategy,
     )
 
     return RAGResponse(**pipeline_result)
+
 
 
 @app.post("/api/ask/text", response_model=RAGResponse, tags=["Text RAG"])

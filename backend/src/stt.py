@@ -75,6 +75,7 @@ async def _call_sarvam_stt_api(
     model: str,
     api_key: str,
     filename: str = "audio.wav",
+    content_type: Optional[str] = None,
     timeout_sec: float = 5.0,
 ) -> Dict[str, Any]:
     """Execute raw HTTP POST to Sarvam STT REST API with network retry."""
@@ -82,14 +83,26 @@ async def _call_sarvam_stt_api(
         "api-subscription-key": api_key,
     }
 
+    # Detect appropriate audio MIME type
+    if not content_type:
+        if filename.endswith(".webm"):
+            content_type = "audio/webm"
+        elif filename.endswith(".ogg") or filename.endswith(".opus"):
+            content_type = "audio/ogg"
+        elif filename.endswith(".mp3"):
+            content_type = "audio/mpeg"
+        else:
+            content_type = "audio/wav"
+
     files = {
-        "file": (filename, audio_bytes, "audio/wav"),
+        "file": (filename, audio_bytes, content_type),
     }
 
     data: Dict[str, Any] = {
         "model": model,
         "with_diarization": "false",
     }
+
     if language_code and language_code != "unknown":
         data["language_code"] = language_code
 

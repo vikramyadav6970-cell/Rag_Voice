@@ -15,13 +15,16 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
  */
 export async function askQuestion(audioBlob, languageHint = 'hin', strategy = 'passage_native') {
   const formData = new FormData();
-  formData.append('file', audioBlob, 'recording.wav');
+  const blobType = audioBlob.type || '';
+  const ext = blobType.includes('wav') ? 'wav' : blobType.includes('ogg') ? 'ogg' : blobType.includes('mp4') ? 'm4a' : 'webm';
+  formData.append('file', audioBlob, `recording.${ext}`);
   if (languageHint) {
     formData.append('language_hint', languageHint);
   }
   if (strategy) {
     formData.append('strategy', strategy);
   }
+
 
   try {
     const response = await fetch(`${API_BASE_URL}/api/ask`, {
