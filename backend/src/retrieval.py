@@ -178,17 +178,19 @@ async def retrieve(
     )
     timings["embed_ms"] = round((time.perf_counter() - t_embed_0) * 1000, 2)
 
-    # 2. Build payload filter
+    # 2. Build payload filter (support cross-lingual English queries over Indic index)
     must_conditions = []
-    if language:
+    if language and language.lower() not in ["en", "eng", "en-in", "all", "unknown"]:
+        target_lang = "hin" if language.lower() in ["hi", "hin", "hi-in"] else "tam" if language.lower() in ["ta", "tam", "ta-in"] else language.lower()
         must_conditions.append(
-            models.FieldCondition(key="language", match=models.MatchValue(value=language.lower()))
+            models.FieldCondition(key="language", match=models.MatchValue(value=target_lang))
         )
     if strategy:
         must_conditions.append(
             models.FieldCondition(key="strategy", match=models.MatchValue(value=strategy))
         )
     qdrant_filter = models.Filter(must=must_conditions) if must_conditions else None
+
 
     # 3. Dense vector search against Qdrant
     t_dense_0 = time.perf_counter()
