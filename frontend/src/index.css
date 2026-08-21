@@ -1,27 +1,32 @@
-/* CSS Design System — Indic Voice-Enabled RAG (HH Goa 2026) */
+/* Indic Voice RAG — Instrument Panel Design System (HH Goa 2026) */
 
 :root {
-  --bg-primary: #0b0f19;
-  --bg-secondary: #111827;
-  --bg-card: rgba(17, 24, 39, 0.75);
-  --bg-card-hover: rgba(31, 41, 55, 0.85);
-  --border-color: rgba(255, 255, 255, 0.08);
-  --border-glow: rgba(99, 102, 241, 0.4);
+  --bg-deep: #0B0F14;
+  --bg-panel: #10161F;
+  --bg-card: #141C27;
+  --bg-surface: #182230;
 
-  --accent-primary: #6366f1;
-  --accent-secondary: #8b5cf6;
-  --accent-cyan: #06b6d4;
-  --accent-rose: #f43f5e;
-  --accent-emerald: #10b981;
-  --accent-amber: #f59e0b;
+  --border-subtle: rgba(237, 234, 227, 0.09);
+  --border-active: rgba(201, 162, 39, 0.4);
+  --border-teal: rgba(62, 142, 140, 0.4);
 
-  --text-main: #f9fafb;
-  --text-muted: #9ca3af;
-  --text-sub: #6b7280;
+  --text-main: #EDEAE3;
+  --text-muted: #95A1B2;
+  --text-dim: #606E80;
 
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-heading: 'Outfit', 'Inter', sans-serif;
-  --font-indic: 'Noto Sans Devanagari', 'Noto Sans Tamil', 'Inter', sans-serif;
+  --accent-gold: #C9A227;
+  --accent-gold-hover: #DBB434;
+  --accent-gold-dim: rgba(201, 162, 39, 0.15);
+
+  --accent-teal: #3E8E8C;
+  --accent-teal-dim: rgba(62, 142, 140, 0.15);
+
+  --accent-coral: #D65A4A;
+  --accent-coral-dim: rgba(214, 90, 74, 0.15);
+
+  --font-serif: 'Fraunces', Georgia, serif;
+  --font-sans: 'IBM Plex Sans', 'IBM Plex Sans Devanagari', 'Noto Sans Tamil', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'Cascadia Code', monospace;
 }
 
 * {
@@ -31,129 +36,162 @@
 }
 
 body {
-  background-color: var(--bg-primary);
+  background-color: var(--bg-deep);
   color: var(--text-main);
   font-family: var(--font-sans);
   min-height: 100vh;
   background-image: 
-    radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
-    radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.12) 0%, transparent 40%),
-    radial-gradient(circle at 50% 50%, rgba(6, 182, 212, 0.05) 0%, transparent 60%);
+    radial-gradient(ellipse at 50% 0%, rgba(201, 162, 39, 0.04) 0%, transparent 60%),
+    radial-gradient(circle at 100% 100%, rgba(62, 142, 140, 0.03) 0%, transparent 50%);
   background-attachment: fixed;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3, h4, .font-heading {
-  font-family: var(--font-heading);
+/* Typography Classes */
+.font-serif-display {
+  font-family: var(--font-serif);
+}
+
+.font-mono-telemetry {
+  font-family: var(--font-mono);
 }
 
 .indic-text {
-  font-family: var(--font-indic);
+  font-family: 'IBM Plex Sans Devanagari', 'Noto Sans Tamil', 'IBM Plex Sans', sans-serif;
 }
 
-/* Glassmorphic Container Card */
-.glass-panel {
-  background: var(--bg-card);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border-color);
-  border-radius: 1.25rem;
-  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+/* Console Panel */
+.console-panel {
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 1rem;
+  box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(237, 234, 227, 0.05);
+}
+
+/* Instrument Dial Center Mic Button */
+.instrument-dial-idle {
+  background: radial-gradient(circle at 35% 35%, #1A2432, #0E1520);
+  border: 2px solid var(--border-subtle);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7), inset 0 2px 4px rgba(237, 234, 227, 0.1);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.glass-panel:hover {
-  border-color: rgba(255, 255, 255, 0.15);
+.instrument-dial-idle:hover {
+  border-color: var(--accent-gold);
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px -4px rgba(0, 0, 0, 0.8), 0 0 20px rgba(201, 162, 39, 0.25);
 }
 
-/* Glowing Pulsing Button for Mic Recording */
-.mic-btn-idle {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-  box-shadow: 0 0 25px rgba(99, 102, 241, 0.4);
-  transition: all 0.3s ease;
+.instrument-dial-idle:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 4px;
 }
 
-.mic-btn-idle:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 35px rgba(99, 102, 241, 0.7);
+.instrument-dial-recording {
+  background: radial-gradient(circle at 35% 35%, #241417, #130B0D);
+  border: 2px solid var(--accent-coral);
+  box-shadow: 0 0 30px rgba(214, 90, 74, 0.4);
 }
 
-.mic-btn-recording {
-  background: linear-gradient(135deg, #e11d48, #f43f5e);
-  box-shadow: 0 0 35px rgba(244, 63, 94, 0.7);
-  animation: pulse-ring 1.5s infinite;
-}
-
-@keyframes pulse-ring {
+/* Animated Mic Pulse Ring */
+@keyframes ring-pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.7), 0 0 20px rgba(244, 63, 94, 0.5);
+    transform: scale(0.96);
+    opacity: 0.8;
   }
-  70% {
-    box-shadow: 0 0 0 22px rgba(244, 63, 94, 0), 0 0 40px rgba(244, 63, 94, 0.8);
+  50% {
+    transform: scale(1.08);
+    opacity: 0.2;
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(244, 63, 94, 0), 0 0 20px rgba(244, 63, 94, 0.5);
+    transform: scale(0.96);
+    opacity: 0.8;
   }
 }
 
-/* Audio Wave Visualizer Bars */
-.wave-bar {
-  width: 4px;
-  background: #f43f5e;
-  border-radius: 4px;
-  animation: wave-anim 1s ease-in-out infinite alternate;
+.dial-pulse-ring {
+  animation: ring-pulse 2s infinite ease-in-out;
 }
 
-@keyframes wave-anim {
-  0% { height: 8px; opacity: 0.4; }
-  100% { height: 36px; opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .dial-pulse-ring {
+    animation: none;
+  }
 }
 
-/* Custom Scrollbar */
+/* Segmented Control Pill Styles */
+.segmented-btn {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.45rem 0.85rem;
+  border-radius: 0.5rem;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.segmented-btn:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+.segmented-btn-active {
+  background-color: var(--accent-gold-dim);
+  color: var(--accent-gold);
+  border-color: var(--accent-gold);
+  box-shadow: inset 0 1px 0 rgba(201, 162, 39, 0.3);
+}
+
+.segmented-btn-inactive {
+  background-color: transparent;
+  color: var(--text-muted);
+}
+
+.segmented-btn-inactive:hover {
+  background-color: rgba(237, 234, 227, 0.04);
+  color: var(--text-main);
+}
+
+/* Telemetry Badge Styles */
+.telemetry-chip {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 0.375rem;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.telemetry-chip-teal {
+  background-color: var(--accent-teal-dim);
+  border-color: var(--border-teal);
+  color: #72C0BE;
+}
+
+.telemetry-chip-gold {
+  background-color: var(--accent-gold-dim);
+  border-color: var(--border-active);
+  color: var(--accent-gold);
+}
+
+/* Custom Scrollbar for Terminals */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(237, 234, 227, 0.12);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-/* Telemetry Badge Styles */
-.badge-telemetry {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.25rem 0.65rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  border-radius: 9999px;
-  background: rgba(99, 102, 241, 0.12);
-  color: #a5b4fc;
-  border: 1px solid rgba(99, 102, 241, 0.25);
-}
-
-.badge-guardrail-pass {
-  background: rgba(16, 185, 129, 0.12);
-  color: #6ee7b7;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-.badge-guardrail-refuse {
-  background: rgba(245, 158, 11, 0.12);
-  color: #fcd34d;
-  border: 1px solid rgba(245, 158, 11, 0.3);
-}
-
-.badge-guardrail-unsafe {
-  background: rgba(244, 63, 94, 0.12);
-  color: #fda4af;
-  border: 1px solid rgba(244, 63, 94, 0.3);
+  background: rgba(237, 234, 227, 0.25);
 }
