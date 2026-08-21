@@ -11,15 +11,22 @@ Keep entries short. Newest at the top.
 
 ## STATUS SNAPSHOT (always keep this section current — overwrite, don't append)
 
-- **Current phase**: Phase 6 — Frontend (React)
+- **Current phase**: Phase 7 — Deployment
 - **Blocking issue**: none
-- **Next immediate task**: Task 6.3 — Demo polish (`frontend/src/`)
+- **Next immediate task**: Task 7.1 — Backend deployment (`backend/Dockerfile`, Render/Railway)
 - **Dataset subset in use**: Hindi (`hin`) + Tamil (`tam`), 5,536 points indexed in Qdrant Cloud (`msmarco_indic_rag`)
 - **Deployed?**: no
 
 ---
 
 ## LOG (append new entries at the top, most recent first)
+
+### 2026-08-22 — Agent (Task 6.3)
+- What was done: Polished `frontend/src/components/VoiceQA.jsx` for live demo readiness. Implemented animated 5-stage pipeline stepper during loading (`Sarvam STT` -> `Qdrant Hybrid Search` -> `BM25 & RRF` -> `Confidence Guardrails` -> `LLM Synthesis`). Added dedicated 6-stage latency telemetry metrics matrix directly on the answer card. Enhanced guardrail refusal and error states with intentional shield badges, categorization tags (`[Safety]`, `[Topicality]`, `[Confidence]`, `[Grounding]`), and non-technical explanations. Added 1-click interactive sample query presets for Hindi, Tamil, and English.
+- Files changed: [frontend/src/components/VoiceQA.jsx](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/frontend/src/components/VoiceQA.jsx), [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md).
+- What was verified/tested: Ran `npm run build` in `frontend/` — built production bundle with 0 errors in 1.85s. Verified interactive stage stepper and telemetry card rendering.
+- Next task: Task 7.1 — Backend deployment (`backend/Dockerfile`).
+
 
 ### 2026-08-22 — Agent (Task 6.2)
 - What was done: Built centralized API client module at `frontend/src/api/client.js` exporting `askQuestion(audioBlob, language, strategy)`, `askTextQuestion(query, language, strategy)`, and `checkHealth()`. Connected `VoiceQA.jsx` to live `/api/ask` backend route. Implemented non-technical human-readable guardrail refusal cards for safety, topicality, confidence, and grounding failures. Added text fallback query bar for direct interactive testing.
