@@ -13,13 +13,20 @@ Keep entries short. Newest at the top.
 
 - **Current phase**: Phase 6 — Frontend (React)
 - **Blocking issue**: none
-- **Next immediate task**: Task 6.2 — API integration (`frontend/src/api/client.js`)
+- **Next immediate task**: Task 6.3 — Demo polish (`frontend/src/`)
 - **Dataset subset in use**: Hindi (`hin`) + Tamil (`tam`), 5,536 points indexed in Qdrant Cloud (`msmarco_indic_rag`)
 - **Deployed?**: no
 
 ---
 
 ## LOG (append new entries at the top, most recent first)
+
+### 2026-08-22 — Agent (Task 6.2)
+- What was done: Built centralized API client module at `frontend/src/api/client.js` exporting `askQuestion(audioBlob, language, strategy)`, `askTextQuestion(query, language, strategy)`, and `checkHealth()`. Connected `VoiceQA.jsx` to live `/api/ask` backend route. Implemented non-technical human-readable guardrail refusal cards for safety, topicality, confidence, and grounding failures. Added text fallback query bar for direct interactive testing.
+- Files changed: [frontend/src/api/client.js](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/frontend/src/api/client.js), [frontend/src/components/VoiceQA.jsx](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/frontend/src/components/VoiceQA.jsx), [frontend/.env](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/frontend/.env), [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md).
+- What was verified/tested: Ran `npm run build` in `frontend/` — built Vite bundle in 1.77s with 0 errors. Verified API client contract alignment with FastAPI schema.
+- Next task: Task 6.3 — Demo polish (`frontend/src/`).
+
 
 ### 2026-08-22 — Agent (Task 6.1)
 - What was done: Built React 18 + Vite frontend foundation. Created modern glassmorphism design system in `frontend/src/index.css` with dark mode, pulsing audio visualizer bars, and telemetry badges. Built core component `frontend/src/components/VoiceQA.jsx` utilizing browser `MediaRecorder` API with 7 distinct UI states (`idle`, `recording`, `uploading`, `waiting-for-answer`, `showing-answer`, `error`, `guardrail-refused`), source citations accordion, and latency telemetry pills. Updated `frontend/src/App.jsx` with language selector (Hindi, Tamil, English) and chunking strategy selector.

@@ -14,27 +14,33 @@ import {
   AlertTriangle,
   FileText,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Send,
+  HelpCircle
 } from 'lucide-react';
+import { askQuestion, askTextQuestion } from '../api/client';
 
 /**
- * VoiceQA Component — Voice-Enabled Multilingual RAG Interactive Console.
- * Supports browser microphone capture, rich pipeline states, telemetry badges, and source citations.
+ * VoiceQA Component — Connected Live Multilingual Voice & Text RAG Console.
+ * Orchestrates browser MediaRecorder capture -> Backend /api/ask -> Grounded UI Synthesis.
  */
 export default function VoiceQA({ selectedLanguage = 'hin', selectedStrategy = 'passage_native' }) {
-  // UI Pipeline States: 'idle' | 'recording' | 'uploading' | 'waiting-for-answer' | 'showing-answer' | 'error' | 'guardrail-refused'
+  // UI States: 'idle' | 'recording' | 'uploading' | 'waiting-for-answer' | 'showing-answer' | 'error' | 'guardrail-refused'
   const [uiState, setUiState] = useState('idle');
+  const [activeStepMessage, setActiveStepMessage] = useState('');
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [resultData, setResultData] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [guardrailReason, setGuardrailReason] = useState('');
   const [expandedSource, setExpandedSource] = useState(null);
+  const [textInput, setTextInput] = useState('');
 
   // Audio Recording Refs
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerIntervalRef = useRef(null);
 
-  // Clean up timer on unmount
+  // Clean up timer & tracks on unmount
   useEffect(() => {
     return () => {
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
@@ -47,6 +53,7 @@ export default function VoiceQA({ selectedLanguage = 'hin', selectedStrategy = '
   // --- Browser Microphone Recording Handlers ---
   const startRecording = async () => {
     setErrorMessage('');
+    setGuardrailReason('');
     audioChunksRef.current = [];
     setRecordingDuration(0);
 
@@ -67,7 +74,7 @@ export default function VoiceQA({ selectedLanguage = 'hin', selectedStrategy = '
 
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-        // Stop all tracks to release mic hardware
+        // Release mic hardware tracks
         stream.getTracks().forEach(track => track.stop());
         handleAudioCaptured(audioBlob);
       };
@@ -96,76 +103,91 @@ export default function VoiceQA({ selectedLanguage = 'hin', selectedStrategy = '
     }
   };
 
-  // --- Audio Processing (Task 6.1 Stub Implementation) ---
+  // --- Process Audio via Real Backend API ---
   const handleAudioCaptured = async (audioBlob) => {
     setUiState('uploading');
+    setActiveStepMessage('Uploading voice recording to backend...');
 
-    // Simulate upload delay
-    setTimeout(() => {
-      setUiState('waiting-for-answer');
-      
-      // Simulate pipeline synthesis delay (STT -> Retrieve -> Generate)
+    try {
+      // Transition to processing state
       setTimeout(() => {
-        // Stub mock response for Task 6.1 UI state validation
-        const mockResponse = {
-          transcript: selectedLanguage === 'tam' ? 'பொட்டாசியம் குறைந்த உணவுகள் என்ன?' : 'कॉर्पोरेशन क्या है?',
-          query: selectedLanguage === 'tam' ? 'பொட்டாசியம் குறைந்த உணவுகள் என்ன?' : 'कॉर्पोरेशन क्या है?',
-          detected_language: selectedLanguage === 'tam' ? 'ta-IN' : 'hi-IN',
-          answer: selectedLanguage === 'tam' 
-            ? 'பொட்டாசியம் குறைந்த உணவுகளில் ஆப்பிள், திராட்சை, பெர்ரி, வெள்ளரிக்காய், மற்றும் முட்டைக்கோஸ் ஆகியவை அடங்கும்.'
-            : 'निगम (Corporation) एक ऐसी कंपनी या लोगों का समूह है जो कानून की नजर में एक एकल इकाई (Single Legal Entity) के रूप में कार्य करने के लिए अधिकृत होता है।',
-          sources: [
-            {
-              chunk_id: 'msmarco_hin_p1',
-              source_doc_id: '1102432_p1',
-              strategy: selectedStrategy,
-              score: 0.0328,
-              text: 'एक कंपनी एक विशिष्ट देश में निगमित होती है, अक्सर उस देश के एक छोटे उपसमूह में कानून के तहत मान्यता प्राप्त होती है।',
-              resolved_context: 'एक निगम एक कंपनी या लोगों का समूह होता है जो एक एकल इकाई के रूप में कार्य करने के लिए अधिकृत होता है और कानून में इस प्रकार से मान्यता प्राप्त होती है।',
-              language: selectedLanguage,
-            },
-            {
-              chunk_id: 'msmarco_hin_p2',
-              source_doc_id: '1102432_p4',
-              strategy: selectedStrategy,
-              score: 0.0295,
-              text: 'निगम के शेयरधारक कंपनी के ऋणों के लिए व्यक्तिगत रूप से उत्तरदायी नहीं होते हैं।',
-              resolved_context: 'निगम के शेयरधारक कंपनी के ऋणों के लिए व्यक्तिगत रूप से उत्तरदायी नहीं होते हैं (सीमित देयता)।',
-              language: selectedLanguage,
-            }
-          ],
-          timings_ms: {
-            stt_ms: 780.0,
-            embed_ms: 120.5,
-            dense_search_ms: 280.2,
-            sparse_search_ms: 1.2,
-            fusion_ms: 0.02,
-            retrieval_ms: 410.0,
-            generation_ms: 440.5,
-            ttft_ms: 320.0,
-            retrieval_to_output_ms: 850.5,
-            total_pipeline_ms: 1630.5,
-          },
-          guardrail_flags: {
-            input_safe: true,
-            input_offtopic: false,
-            retrieval_confident: true,
-            output_grounded: true,
-          },
-          success: true,
-        };
+        setUiState('waiting-for-answer');
+        setActiveStepMessage('Transcribing speech & searching MSMARCO-XI...');
+      }, 400);
 
-        setResultData(mockResponse);
-        setUiState('showing-answer');
-      }, 1200);
-    }, 800);
+      const response = await askQuestion(audioBlob, selectedLanguage, selectedStrategy);
+      handlePipelineResponse(response);
+    } catch (err) {
+      console.error('Failed to process voice query:', err);
+      setErrorMessage(err.message || 'Error communicating with backend service. Please ensure the backend is running.');
+      setUiState('error');
+    }
+  };
+
+  // --- Process Text Query via Real Backend API ---
+  const handleTextSubmit = async (e) => {
+    if (e) e.preventDefault();
+    const clean = textInput.trim();
+    if (!clean) return;
+
+    setUiState('waiting-for-answer');
+    setActiveStepMessage('Searching hybrid vector index & validating grounding...');
+    setErrorMessage('');
+    setGuardrailReason('');
+
+    try {
+      const response = await askTextQuestion(clean, selectedLanguage, selectedStrategy);
+      handlePipelineResponse(response);
+      setTextInput('');
+    } catch (err) {
+      console.error('Failed to process text query:', err);
+      setErrorMessage(err.message || 'Error communicating with backend service.');
+      setUiState('error');
+    }
+  };
+
+  // --- Common Response Evaluation & Guardrail Interpretation ---
+  const handlePipelineResponse = (response) => {
+    setResultData(response);
+
+    const flags = response.guardrail_flags || {};
+
+    // Check if any guardrail fired
+    if (flags.input_safe === false) {
+      setGuardrailReason('Safety Guardrail: This question was flagged as containing unsafe or prohibited content.');
+      setUiState('guardrail-refused');
+      return;
+    }
+
+    if (flags.input_offtopic === true) {
+      setGuardrailReason('Topicality Guardrail: This question appears to be outside the general knowledge domain of the MSMARCO-XI dataset.');
+      setUiState('guardrail-refused');
+      return;
+    }
+
+    if (flags.retrieval_confident === false && (!response.sources || response.sources.length === 0)) {
+      setGuardrailReason('Confidence Guardrail: No sufficiently confident evidence passages were found in the knowledge base to answer this question factually.');
+      setUiState('guardrail-refused');
+      return;
+    }
+
+    if (flags.output_grounded === false) {
+      setGuardrailReason('Grounding Guardrail: The synthesized answer could not be factually verified against the retrieved context passages.');
+      setUiState('guardrail-refused');
+      return;
+    }
+
+    // Standard successful grounded synthesis
+    setUiState('showing-answer');
   };
 
   const resetToIdle = () => {
     setUiState('idle');
     setResultData(null);
     setErrorMessage('');
+    setGuardrailReason('');
     setRecordingDuration(0);
+    setActiveStepMessage('');
   };
 
   // Format seconds to MM:SS
@@ -176,13 +198,13 @@ export default function VoiceQA({ selectedLanguage = 'hin', selectedStrategy = '
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 py-8">
+    <div className="w-full max-w-4xl mx-auto px-4 py-4">
       {/* Main Glassmorphic QA Card */}
       <div className="glass-panel p-6 sm:p-10 relative overflow-hidden">
         
         {/* State 1: IDLE */}
         {uiState === 'idle' && (
-          <div className="text-center py-8">
+          <div className="text-center py-4 sm:py-6">
             <div className="mb-6 flex justify-center">
               <button
                 id="start-record-btn"
@@ -195,19 +217,38 @@ export default function VoiceQA({ selectedLanguage = 'hin', selectedStrategy = '
             </div>
 
             <h2 className="text-2xl sm:text-3xl font-bold mb-2 tracking-tight">
-              Tap to Ask in Voice
+              Tap Microphone to Speak
             </h2>
             <p className="text-gray-400 text-sm sm:text-base max-w-md mx-auto mb-6">
-              Ask any question in <span className="text-indigo-400 font-semibold">{selectedLanguage === 'hin' ? 'Hindi' : selectedLanguage === 'tam' ? 'Tamil' : 'English'}</span>. We transcribe, retrieve grounded MSMARCO evidence, and answer in real-time.
+              Ask in <span className="text-indigo-400 font-semibold">{selectedLanguage === 'hin' ? 'Hindi' : selectedLanguage === 'tam' ? 'Tamil' : 'English'}</span>. We transcribe with Sarvam AI, retrieve grounded MSMARCO evidence, and answer factually.
             </p>
 
-            {/* Strategy & Language Pills */}
+            {/* Quick Text Input Option */}
+            <form onSubmit={handleTextSubmit} className="max-w-md mx-auto mb-6 flex items-center gap-2">
+              <input
+                type="text"
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                placeholder={selectedLanguage === 'hin' ? 'या यहाँ हिंदी में टाइप करें...' : selectedLanguage === 'tam' ? 'அல்லது தமிழில் தட்டச்சு செய்க...' : 'Or type a question here...'}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-gray-800/80 border border-gray-700 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 indic-text"
+              />
+              <button
+                type="submit"
+                disabled={!textInput.trim()}
+                className="p-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white transition-colors cursor-pointer"
+                aria-label="Submit text question"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </form>
+
+            {/* Active System Badges */}
             <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
               <span className="badge-telemetry">
                 <Layers className="w-3.5 h-3.5" /> Strategy: {selectedStrategy}
               </span>
               <span className="badge-telemetry">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Grounding Guardrails Active
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Multi-tier Guardrails Active
               </span>
             </div>
           </div>
@@ -244,7 +285,7 @@ export default function VoiceQA({ selectedLanguage = 'hin', selectedStrategy = '
             </div>
 
             <p className="text-gray-300 text-sm">
-              Speak clearly into your microphone. Tap the square button when done.
+              Speak your question clearly. Tap the red button when finished.
             </p>
           </div>
         )}
@@ -253,25 +294,28 @@ export default function VoiceQA({ selectedLanguage = 'hin', selectedStrategy = '
         {(uiState === 'uploading' || uiState === 'waiting-for-answer') && (
           <div className="text-center py-12">
             <div className="flex justify-center mb-6">
-              <div className="w-20 h-20 rounded-full bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+              <div className="w-20 h-20 rounded-full bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-lg shadow-indigo-500/20">
                 <Loader2 className="w-10 h-10 animate-spin" />
               </div>
             </div>
 
-            <h3 className="text-xl sm:text-2xl font-bold mb-3">
-              {uiState === 'uploading' ? 'Uploading Audio Payload...' : 'Synthesizing Grounded Answer...'}
+            <h3 className="text-xl sm:text-2xl font-bold mb-2">
+              {activeStepMessage || 'Processing Voice RAG Pipeline...'}
             </h3>
+            <p className="text-xs text-gray-400 mb-6 max-w-sm mx-auto">
+              Executing STT transcription, hybrid vector retrieval, and factual grounding checks.
+            </p>
 
-            {/* Pipeline Step Indicators */}
+            {/* Pipeline Stage Indicators */}
             <div className="flex flex-wrap justify-center gap-2 max-w-lg mx-auto text-xs text-gray-400">
-              <span className={`px-3 py-1 rounded-full border ${uiState === 'uploading' ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40' : 'bg-gray-800 border-gray-700 text-emerald-400'}`}>
-                ✓ Speech-to-Text (Sarvam v3)
+              <span className={`px-3 py-1 rounded-full border ${uiState === 'uploading' ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 animate-pulse' : 'bg-gray-800 border-gray-700 text-emerald-400'}`}>
+                1. Sarvam AI STT
               </span>
               <span className={`px-3 py-1 rounded-full border ${uiState === 'waiting-for-answer' ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 animate-pulse' : 'bg-gray-800 border-gray-700'}`}>
-                ⚙ Hybrid Search & RRF
+                2. Qdrant Hybrid Search & RRF
               </span>
               <span className="px-3 py-1 rounded-full bg-gray-800 border border-gray-700">
-                ⚙ Grounding Guardrail
+                3. Grounded Synthesis
               </span>
             </div>
           </div>
@@ -287,9 +331,11 @@ export default function VoiceQA({ selectedLanguage = 'hin', selectedStrategy = '
                   <Volume2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="text-xs text-gray-400 font-medium">Your Question ({resultData.detected_language || 'Voice'}):</div>
+                  <div className="text-xs text-gray-400 font-medium">
+                    Question ({resultData.detected_language || selectedLanguage}):
+                  </div>
                   <div className="text-base sm:text-lg font-semibold text-white indic-text">
-                    "{resultData.transcript}"
+                    "{resultData.transcript || resultData.query}"
                   </div>
                 </div>
               </div>
@@ -297,7 +343,7 @@ export default function VoiceQA({ selectedLanguage = 'hin', selectedStrategy = '
                 onClick={resetToIdle}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-700/50 hover:bg-gray-700 text-gray-300 transition-colors self-start sm:self-auto cursor-pointer"
               >
-                <RotateCcw className="w-3.5 h-3.5" /> Ask Again
+                <RotateCcw className="w-3.5 h-3.5" /> Ask Another
               </button>
             </div>
 
@@ -305,7 +351,7 @@ export default function VoiceQA({ selectedLanguage = 'hin', selectedStrategy = '
             <div className="p-6 rounded-2xl bg-gradient-to-br from-indigo-950/40 via-purple-950/20 to-gray-900/60 border border-indigo-500/30 shadow-xl">
               <div className="flex items-center justify-between gap-2 mb-3">
                 <div className="flex items-center gap-2 text-indigo-300 font-semibold text-sm">
-                  <Sparkles className="w-4 h-4 text-indigo-400" /> Grounded Synthesis
+                  <Sparkles className="w-4 h-4 text-indigo-400" /> Grounded Answer
                 </div>
                 {resultData.guardrail_flags?.output_grounded && (
                   <span className="badge-guardrail-pass text-xs font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
@@ -322,27 +368,39 @@ export default function VoiceQA({ selectedLanguage = 'hin', selectedStrategy = '
             {resultData.timings_ms && (
               <div className="p-4 rounded-xl bg-gray-900/60 border border-gray-800">
                 <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-indigo-400" /> Latency Telemetry Breakdown (P50 Benchmarked)
+                  <Clock className="w-3.5 h-3.5 text-indigo-400" /> Latency Telemetry Breakdown (Live Execution)
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs">
-                  <span className="badge-telemetry">
-                    STT: <strong className="text-white ml-0.5">{resultData.timings_ms.stt_ms || 0}ms</strong>
-                  </span>
-                  <span className="badge-telemetry">
-                    Dense Search: <strong className="text-white ml-0.5">{resultData.timings_ms.dense_search_ms || 0}ms</strong>
-                  </span>
-                  <span className="badge-telemetry">
-                    Sparse BM25: <strong className="text-white ml-0.5">{resultData.timings_ms.sparse_search_ms || 0}ms</strong>
-                  </span>
-                  <span className="badge-telemetry">
-                    Retrieval Total: <strong className="text-white ml-0.5">{resultData.timings_ms.retrieval_ms || 0}ms</strong>
-                  </span>
-                  <span className="badge-telemetry">
-                    LLM Synthesis: <strong className="text-white ml-0.5">{resultData.timings_ms.generation_ms || 0}ms</strong>
-                  </span>
-                  <span className="badge-telemetry bg-indigo-600/20 text-indigo-200 border-indigo-400/40">
-                    Retrieval-to-Output: <strong className="text-white ml-0.5">{resultData.timings_ms.retrieval_to_output_ms || 0}ms</strong>
-                  </span>
+                  {resultData.timings_ms.stt_ms !== undefined && resultData.timings_ms.stt_ms > 0 && (
+                    <span className="badge-telemetry">
+                      STT: <strong className="text-white ml-0.5">{resultData.timings_ms.stt_ms}ms</strong>
+                    </span>
+                  )}
+                  {resultData.timings_ms.dense_search_ms !== undefined && (
+                    <span className="badge-telemetry">
+                      Dense Search: <strong className="text-white ml-0.5">{resultData.timings_ms.dense_search_ms}ms</strong>
+                    </span>
+                  )}
+                  {resultData.timings_ms.sparse_search_ms !== undefined && (
+                    <span className="badge-telemetry">
+                      BM25 Sparse: <strong className="text-white ml-0.5">{resultData.timings_ms.sparse_search_ms}ms</strong>
+                    </span>
+                  )}
+                  {resultData.timings_ms.retrieval_ms !== undefined && (
+                    <span className="badge-telemetry">
+                      Retrieval Total: <strong className="text-white ml-0.5">{resultData.timings_ms.retrieval_ms}ms</strong>
+                    </span>
+                  )}
+                  {resultData.timings_ms.generation_ms !== undefined && (
+                    <span className="badge-telemetry">
+                      LLM Generation: <strong className="text-white ml-0.5">{resultData.timings_ms.generation_ms}ms</strong>
+                    </span>
+                  )}
+                  {resultData.timings_ms.retrieval_to_output_ms !== undefined && (
+                    <span className="badge-telemetry bg-indigo-600/20 text-indigo-200 border-indigo-400/40">
+                      Retrieval-to-Output: <strong className="text-white ml-0.5">{resultData.timings_ms.retrieval_to_output_ms}ms</strong>
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -366,7 +424,7 @@ export default function VoiceQA({ selectedLanguage = 'hin', selectedStrategy = '
                           onClick={() => setExpandedSource(isExpanded ? null : i)}
                         >
                           <div className="flex items-center gap-2 text-xs text-gray-300 font-medium">
-                            <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-xs">
+                            <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-xs font-semibold">
                               {i + 1}
                             </span>
                             <span>Doc: {src.source_doc_id || src.chunk_id}</span>
@@ -391,7 +449,7 @@ export default function VoiceQA({ selectedLanguage = 'hin', selectedStrategy = '
                         {isExpanded && (
                           <div className="mt-3 pt-3 border-t border-gray-700/40 text-xs text-gray-300 space-y-2">
                             <div>
-                              <strong className="text-gray-400">Matched Chunk Text:</strong>
+                              <strong className="text-gray-400">Matched Chunk:</strong>
                               <p className="mt-1 p-2 rounded bg-gray-900/50 border border-gray-800 indic-text leading-relaxed">
                                 {src.text}
                               </p>
@@ -413,7 +471,7 @@ export default function VoiceQA({ selectedLanguage = 'hin', selectedStrategy = '
               </div>
             )}
 
-            {/* Bottom Action */}
+            {/* Bottom Action Button */}
             <div className="pt-4 flex justify-center">
               <button
                 onClick={resetToIdle}
@@ -431,13 +489,13 @@ export default function VoiceQA({ selectedLanguage = 'hin', selectedStrategy = '
             <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto mb-4">
               <AlertTriangle className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">Something went wrong</h3>
-            <p className="text-gray-400 text-sm max-w-md mx-auto mb-6">
-              {errorMessage || 'Unable to complete voice request. Please check your network or try again.'}
+            <h3 className="text-xl font-bold text-white mb-2">Service Error</h3>
+            <p className="text-gray-300 text-sm max-w-md mx-auto mb-6">
+              {errorMessage || 'Unable to complete voice request. Please ensure the backend server is running.'}
             </p>
             <button
               onClick={resetToIdle}
-              className="px-5 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold transition-colors cursor-pointer"
+              className="px-5 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold transition-colors cursor-pointer"
             >
               Try Again
             </button>
@@ -447,18 +505,26 @@ export default function VoiceQA({ selectedLanguage = 'hin', selectedStrategy = '
         {/* State 6: GUARDRAIL REFUSED */}
         {uiState === 'guardrail-refused' && (
           <div className="text-center py-8">
-            <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto mb-4">
+            <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto mb-4 shadow-lg shadow-amber-500/20">
               <ShieldAlert className="w-8 h-8" />
             </div>
             <h3 className="text-xl font-bold text-white mb-2">Guardrail Refusal</h3>
             <p className="text-gray-300 text-sm max-w-md mx-auto mb-6">
-              I cannot answer this query because it fell outside the scope of the knowledge base or was flagged by content safety rules.
+              {guardrailReason || resultData?.answer || 'I cannot answer this query because it fell outside the scope of the knowledge base or failed grounding verification.'}
             </p>
+
+            {/* Display Question for Context */}
+            {resultData?.transcript && (
+              <div className="mb-6 p-3 rounded-xl bg-gray-800/50 border border-gray-700 max-w-md mx-auto text-xs text-gray-300 indic-text">
+                <strong>Question asked:</strong> "{resultData.transcript}"
+              </div>
+            )}
+
             <button
               onClick={resetToIdle}
-              className="px-5 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold transition-colors cursor-pointer"
+              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors cursor-pointer"
             >
-              Ask a Valid Question
+              Ask a Valid Knowledge Question
             </button>
           </div>
         )}
