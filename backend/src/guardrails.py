@@ -32,8 +32,10 @@ UNSAFE_PATTERNS = [
 ]
 
 OFFTOPIC_PATTERNS = [
-    r"^(hi|hello|hey|yo|namaste|test|testing|123|asdf|qwerty)\b[\s.!]*$",
+    r"^(\b(hi|hello|hey|yo|namaste|test|testing|123|asdf|qwerty)\b[\s.!,]*)+$",
+    r"^(what('s| is) up|how are you|good (morning|evening|afternoon))[\s.!?]*$",
 ]
+
 
 
 def _get_async_client() -> AsyncOpenAI:
@@ -125,6 +127,98 @@ async def is_offtopic(text: str, domain_description: str = DEFAULT_DOMAIN_DESCRI
         return False
 
 
+def is_low_confidence_retrieval(
+    results: List[Dict[str, Any]],
+    score_threshold: float = 0.012,
+    dense_threshold: float = 0.28,
+) -> bool:
+    """Check whether retrieved results exhibit low relevance confidence.
+
+    Empirical Threshold Rationale:
+    In Reciprocal Rank Fusion (rrf_k=60), a top-1 hit from either dense or sparse yields 1/61 (~0.0164),
+    and fused top-1 yields ~0.0328. Hits with RRF score < 0.012 or dense similarity < 0.28 indicate
+    tangential or weak semantic alignment with out-of-domain queries.
+
+    Returns:
+        True if low confidence (should refuse/skip generation), False if confident.
+    """
+    if not results or len(results) == 0:
+        return True
+
+    top_hit = results[0]
+    top_rrf_score = float(top_hit.get("score", 0.0) or 0.0)
+    top_dense_score = top_hit.get("dense_score")
+
+    # If dense score is present, check cosine similarity threshold
+    if top_dense_score is not None and float(top_dense_score) < dense_threshold:
+        return True
+
+    # Check RRF score threshold
+    if top_rrf_score < score_threshold:
+        return True
+
+    return False
+
+
+async def is_grounded(answer: str, context_chunks: List[Dict[str, Any]]) -> bool:
+    """Check whether generated answer is strictly supported by retrieved context passages.
+
+    Returns:
+        True if fully supported by context or valid refusal, False if ungrounded/hallucinated.
+    """
+    clean_ans = answer.strip()
+    if not clean_ans:
+        return False
+
+    # Standard refusal sentinels are by definition grounded responses to missing data
+    lower_ans = clean_ans.lower()
+    if (
+        "not have sufficient information" in lower_ans
+        or "not enough information" in lower_ans
+        or "उत्तर उपलब्ध नहीं है" in clean_ans
+        or "जानकारी उपलब्ध नहीं है" in clean_ans
+        or "could not find" in lower_ans
+        or "outside the scope" in lower_ans
+    ):
+        return True
+
+    if not context_chunks:
+        return False
+
+    # Concatenate context passages
+    context_text = "\n\n".join(
+        (c.get("resolved_context") or c.get("text") or "")[:400] for c in context_chunks[:3]
+    )
+
+    # LLM-as-judge factual consistency check
+    prompt = (
+        f"Context Evidence:\n{context_text}\n\n"
+        f"Proposed Answer:\n{clean_ans}\n\n"
+        f"Is the proposed answer strictly and factually supported by the context evidence without outside hallucination? "
+        f"Respond with ONLY 'YES' or 'NO'."
+    )
+
+    try:
+        client = _get_async_client()
+        model = os.getenv("GENERATION_MODEL", "grok-2-mini")
+        res = await client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=5,
+            temperature=0.0,
+        )
+        verdict = res.choices[0].message.content.strip().upper() if res.choices else "YES"
+        return "YES" in verdict
+    except Exception:
+        # Extractive overlap check on upstream API timeout/error
+        # Check if majority of keywords in the answer appear in the context
+        ans_words = [w.lower() for w in re.findall(r"\w+", clean_ans) if len(w) > 3]
+        if not ans_words:
+            return True
+        matched = sum(1 for w in ans_words if w in context_text.lower())
+        return (matched / len(ans_words)) >= 0.4
+
+
 async def validate_input_query(text: str, domain: str = DEFAULT_DOMAIN_DESCRIPTION) -> Dict[str, Any]:
     """Execute complete input guardrails validation hook for the harness.
 
@@ -154,3 +248,15 @@ async def validate_input_query(text: str, domain: str = DEFAULT_DOMAIN_DESCRIPTI
         "input_offtopic": False,
         "refusal_message": None,
     }
+
+
+async def check_retrieval_confidence_hook(results: List[Dict[str, Any]]) -> bool:
+    """Harness hook to evaluate retrieval confidence."""
+    is_low = is_low_confidence_retrieval(results)
+    return not is_low
+
+
+async def check_grounding_hook(answer: str, context_chunks: List[Dict[str, Any]]) -> bool:
+    """Harness hook to evaluate answer grounding."""
+    return await is_grounded(answer, context_chunks)
+

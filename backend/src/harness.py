@@ -31,8 +31,13 @@ from dotenv import load_dotenv
 # Ensure backend root is on sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from src.generation import generate
-from src.guardrails import validate_input_query
+from src.guardrails import (
+    check_grounding_hook,
+    check_retrieval_confidence_hook,
+    validate_input_query,
+)
 from src.retrieval import retrieve
+
 from src.stt import transcribe
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
@@ -188,8 +193,12 @@ class RAGPipelineHarness:
                 is_confident = await self.retrieval_confidence_hook(ctx.context_chunks)
                 ctx.guardrail_flags["retrieval_confident"] = is_confident
             else:
-                # Default baseline confidence check: requires at least 1 retrieved chunk
                 ctx.guardrail_flags["retrieval_confident"] = len(ctx.context_chunks) > 0
+
+            # Short-circuit generation if retrieval confidence is low
+            if not ctx.guardrail_flags["retrieval_confident"]:
+                ctx.answer = "I don't have enough grounded information to answer that."
+                ctx.stop_early = True
         except Exception as exc:
             ctx.errors["retrieval_confidence"] = str(exc)
         finally:
@@ -235,6 +244,10 @@ class RAGPipelineHarness:
             if self.grounding_guardrail_hook:
                 is_grounded = await self.grounding_guardrail_hook(ctx.answer, ctx.context_chunks)
                 ctx.guardrail_flags["output_grounded"] = is_grounded
+                
+                # If grounding validation fails, replace ungrounded answer with refusal fallback
+                if not is_grounded:
+                    ctx.answer = "I don't have enough grounded information to answer that."
         except Exception as exc:
             ctx.errors["grounding_guardrail"] = str(exc)
         finally:
@@ -278,6 +291,9 @@ class RAGPipelineHarness:
 # Default Singleton Pipeline Instance
 pipeline = RAGPipelineHarness()
 pipeline.input_guardrail_hook = validate_input_query
+pipeline.retrieval_confidence_hook = check_retrieval_confidence_hook
+pipeline.grounding_guardrail_hook = check_grounding_hook
+
 
 
 

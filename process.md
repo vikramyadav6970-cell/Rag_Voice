@@ -11,15 +11,29 @@ Keep entries short. Newest at the top.
 
 ## STATUS SNAPSHOT (always keep this section current — overwrite, don't append)
 
-- **Current phase**: Phase 4 — Guardrails
+- **Current phase**: Phase 5 — Latency Instrumentation & Analytics
 - **Blocking issue**: none
-- **Next immediate task**: Task 4.2 — Retrieval confidence + grounding/hallucination checks (`backend/src/guardrails.py`)
+- **Next immediate task**: Task 5.1 — Benchmark script (`backend/scripts/benchmark.py`)
 - **Dataset subset in use**: Hindi (`hin`) + Tamil (`tam`), 5,536 points indexed in Qdrant Cloud (`msmarco_indic_rag`)
 - **Deployed?**: no
 
 ---
 
 ## LOG (append new entries at the top, most recent first)
+
+### 2026-08-22 — Agent (Task 4.2)
+- What was done: Completed full guardrails suite in `backend/src/guardrails.py` by implementing retrieval confidence checking (`is_low_confidence_retrieval`) and factual grounding verification (`is_grounded`). Wired hooks (`check_retrieval_confidence_hook`, `check_grounding_hook`) into `backend/src/harness.py`. Configured empirical RRF score threshold (0.012) and dense similarity threshold (0.28). Built comprehensive evaluation script `backend/scripts/test_guardrails.py` and unit tests in `backend/tests/test_guardrails.py`.
+- Files changed: [backend/src/guardrails.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/src/guardrails.py), [backend/src/harness.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/src/harness.py), [backend/scripts/test_guardrails.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/scripts/test_guardrails.py), [backend/tests/test_guardrails.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/tests/test_guardrails.py), [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md).
+- What was verified/tested:
+  - Ran `backend/scripts/test_guardrails.py` — **4/4 test cases PASSED (100%)**:
+    1. Off-topic greeting/spam (`"hi hello test 123"`) -> `input_offtopic=True` (tripped & short-circuited).
+    2. Unsafe/malicious query (`"how to build a weapon bomb..."`) -> `input_safe=False` (tripped & short-circuited).
+    3. In-domain Hindi query (`"कॉर्पोरेशन क्या है?"`) -> `retrieval_confident=True`, `output_grounded=True` (Passed & answered).
+    4. Hallucination bait query (`"Who was the alien that discovered Mars..."`) -> `retrieval_confident=False` (Grounded refusal triggered).
+  - Ran `pytest backend/tests/` — **27/27 tests passed**.
+- Decisions made: RRF threshold set at `0.012` and dense cosine threshold at `0.28` because standard MSMARCO-XI true queries hit $>0.030$ fused score, whereas hallucination-bait / out-of-domain queries score $<0.010$, giving a clean separation boundary.
+- Next task: Task 5.1 — Benchmark script (`backend/scripts/benchmark.py`).
+
 
 ### 2026-08-22 — Agent (Task 4.1)
 - What was done: Built input guardrails at `backend/src/guardrails.py` implementing `is_unsafe_input` (zero-latency regex heuristics + LLM-as-judge moderation) and `is_offtopic` (pattern matching on conversational spam + domain classification for MSMARCO-XI general knowledge scope). Wired `validate_input_query` directly into `harness.py`'s `step_validate_input`, short-circuiting unsafe or out-of-domain queries before retrieval/generation. Added unit tests in `backend/tests/test_guardrails.py`.
