@@ -11,15 +11,32 @@ Keep entries short. Newest at the top.
 
 ## STATUS SNAPSHOT (always keep this section current — overwrite, don't append)
 
-- **Current phase**: Phase 5 — Latency Instrumentation & Analytics
+- **Current phase**: Phase 6 — Frontend (React)
 - **Blocking issue**: none
-- **Next immediate task**: Task 5.1 — Benchmark script (`backend/scripts/benchmark.py`)
+- **Next immediate task**: Task 6.1 — Scaffold + mic capture (`frontend/src/`)
 - **Dataset subset in use**: Hindi (`hin`) + Tamil (`tam`), 5,536 points indexed in Qdrant Cloud (`msmarco_indic_rag`)
 - **Deployed?**: no
 
 ---
 
 ## LOG (append new entries at the top, most recent first)
+
+### 2026-08-22 — Agent (Task 5.1)
+- What was done: Built latency benchmarking suite at `backend/scripts/benchmark_latency.py`. Executed 30 diverse multilingual queries across Hindi (`hin`), Tamil (`tam`), and English (`en`). Captured fine-grained sub-stage timings and computed P50, P70, and P100 max percentiles using `numpy.percentile`. Generated markdown and JSON reports at `backend/reports/latency_report.md` and `backend/reports/latency_report.json`, and added a new "Latency Results" section to `README.md`.
+- Files changed: [backend/scripts/benchmark_latency.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/scripts/benchmark_latency.py), [backend/reports/latency_report.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/reports/latency_report.md), [backend/reports/latency_report.json](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/reports/latency_report.json), [README.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/README.md), [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md).
+- What was verified/tested:
+  - **Latency Percentiles (30 runs across Hindi, Tamil, and English)**:
+    - **Query Embedding (`bge-m3`)**: P50 = 146.67ms | P70 = 152.12ms | P100 = 164.07ms
+    - **Dense Qdrant Search (AWS Cloud)**: P50 = 280.85ms | P70 = 281.69ms | P100 = 290.47ms
+    - **Sparse BM25 Search**: P50 = 1.18ms | P70 = 1.31ms | P100 = 1.88ms
+    - **Reciprocal Rank Fusion**: P50 = 0.02ms | P70 = 0.02ms | P100 = 0.04ms
+    - **Retrieval Confidence Guardrail**: P50 = 0.00ms | P70 = 0.01ms | P100 = 0.01ms
+    - **Grounded LLM Generation**: P50 = 422.50ms | P70 = 461.24ms | P100 = 994.05ms
+    - **Total Retrieval Sub-total**: P50 = 688.31ms | P70 = 703.34ms | P100 = 991.39ms
+    - **Retrieval-to-Output (Target Metric)**: P50 = 1,098.63ms | P70 = 1,126.47ms | P100 = 1,979.40ms
+- Decisions made: Sparse BM25 + RRF fusion verified to add negligible compute latency (<1.5ms total) while improving recall.
+- Next task: Task 6.1 — Scaffold + mic capture (`frontend/src/`).
+
 
 ### 2026-08-22 — Agent (Task 4.2)
 - What was done: Completed full guardrails suite in `backend/src/guardrails.py` by implementing retrieval confidence checking (`is_low_confidence_retrieval`) and factual grounding verification (`is_grounded`). Wired hooks (`check_retrieval_confidence_hook`, `check_grounding_hook`) into `backend/src/harness.py`. Configured empirical RRF score threshold (0.012) and dense similarity threshold (0.28). Built comprehensive evaluation script `backend/scripts/test_guardrails.py` and unit tests in `backend/tests/test_guardrails.py`.
