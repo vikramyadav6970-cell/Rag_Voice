@@ -11,6 +11,15 @@ import sys
 import time
 from typing import Any, Dict, List, Optional
 
+# Ensure standard UTF-8 stream encoding across Windows and Linux environments
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +30,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from src.harness import run_rag_pipeline
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+
 
 MAX_AUDIO_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB limit for voice Q&A
 ALLOWED_AUDIO_MIME_TYPES = {
@@ -168,9 +178,14 @@ async def ask_voice_query(
         strategy=strategy,
     )
 
-    print(f"[API /api/ask] Pipeline Result: transcript='{pipeline_result.get('transcript')}', query='{pipeline_result.get('query')}', answer='{pipeline_result.get('answer', '')[:80]}...', flags={pipeline_result.get('guardrail_flags')}, sources={len(pipeline_result.get('sources', []))}")
+    try:
+        ans_preview = repr(pipeline_result.get('answer', ''))[:80]
+        print(f"[API /api/ask] Pipeline Result: transcript='{pipeline_result.get('transcript')}', query='{pipeline_result.get('query')}', answer={ans_preview}, flags={pipeline_result.get('guardrail_flags')}, sources={len(pipeline_result.get('sources', []))}")
+    except Exception:
+        pass
 
     return RAGResponse(**pipeline_result)
+
 
 
 
