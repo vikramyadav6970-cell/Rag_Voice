@@ -13,13 +13,22 @@ Keep entries short. Newest at the top.
 
 - **Current phase**: Phase 2 — Speech-to-Text
 - **Blocking issue**: none
-- **Next immediate task**: Task 2.1 — Sarvam STT client (`backend/src/stt.py`)
+- **Next immediate task**: Task 2.2 — FastAPI endpoint for audio upload (`backend/src/main.py`)
 - **Dataset subset in use**: Hindi (`hin`) + Tamil (`tam`), 5,536 points indexed in Qdrant Cloud (`msmarco_indic_rag`)
 - **Deployed?**: no
 
 ---
 
 ## LOG (append new entries at the top, most recent first)
+
+### 2026-08-22 — Agent (Task 2.1)
+- What was done: Built async Speech-to-Text client at `backend/src/stt.py` integrating Sarvam AI's Saaras v3 REST API. Added BCP-47 language code normalization (`hi-IN`, `ta-IN`, `te-IN`, `bn-IN`, etc.), 5s timeout, tenacity exponential retry on transient network failures, and graceful error degradation. Built verification script `backend/scripts/test_stt.py` generating in-memory 16kHz audio and added unit tests in `backend/tests/test_stt.py`.
+- Files changed: [backend/src/stt.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/src/stt.py), [backend/scripts/test_stt.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/scripts/test_stt.py), [backend/tests/test_stt.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/tests/test_stt.py), [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md).
+- What was verified/tested:
+  - Ran `backend/scripts/test_stt.py` against live Sarvam API: Verified authentication, status `Success: True`, detected language `hi-IN`, observed roundtrip latency `~789ms`.
+  - Ran `pytest backend/tests/` — **12/12 tests passed** across chunking, hybrid retrieval, and STT modules.
+- Next task: Task 2.2 — FastAPI endpoint for audio upload (`backend/src/main.py`).
+
 
 ### 2026-08-22 — Agent (Task 1.3)
 - What was done: Built async retrieval service at `backend/src/retrieval.py` implementing multilingual hybrid search (dense embeddings via `bge-m3` + sparse BM25 with Indic Unicode tokenization + Reciprocal Rank Fusion), hierarchical parent context resolution for child chunks, and sub-step latency breakdown telemetry (`embed_ms`, `dense_search_ms`, `sparse_search_ms`, `fusion_ms`, `parent_resolution_ms`, `total_retrieval_ms`). Built evaluation script `backend/scripts/compare_strategies.py` running comparative queries across all 4 strategies in Hindi and Tamil. Added unit tests in `backend/tests/test_retrieval.py`.
