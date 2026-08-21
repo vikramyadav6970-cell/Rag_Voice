@@ -26,6 +26,8 @@ const DEMO_PRESETS = {
   ],
 };
 
+import { WavAudioRecorder } from '../utils/audioEncoder';
+
 export default function VoiceQA() {
   const [selectedLanguage, setSelectedLanguage] = useState('hin');
   const [selectedStrategy, setSelectedStrategy] = useState('passage_native');
@@ -40,9 +42,8 @@ export default function VoiceQA() {
   const [guardrailReason, setGuardrailReason] = useState('');
   const [textInput, setTextInput] = useState('');
 
-  // Audio Recording Refs
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
+  // Audio Recorder & Timer Refs
+  const wavRecorderRef = useRef(null);
   const timerIntervalRef = useRef(null);
   const stepIntervalRef = useRef(null);
 
@@ -51,8 +52,8 @@ export default function VoiceQA() {
     return () => {
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
       if (stepIntervalRef.current) clearInterval(stepIntervalRef.current);
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-        mediaRecorderRef.current.stop();
+      if (wavRecorderRef.current) {
+        wavRecorderRef.current.stop().catch(() => {});
       }
     };
   }, []);
@@ -62,7 +63,6 @@ export default function VoiceQA() {
     setErrorMessage('');
     setGuardrailReason('');
     setGuardrailType('');
-    audioChunksRef.current = [];
     setRecordingDuration(0);
 
     try {
@@ -70,41 +70,10 @@ export default function VoiceQA() {
         throw new Error('Microphone access is not supported in this browser.');
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      // Determine optimal browser supported MIME type
-      let mimeType = '';
-      if (typeof MediaRecorder !== 'undefined') {
-        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-          mimeType = 'audio/webm;codecs=opus';
-        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-          mimeType = 'audio/webm';
-        } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
-          mimeType = 'audio/ogg;codecs=opus';
-        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-          mimeType = 'audio/mp4';
-        }
-      }
+      const recorder = new WavAudioRecorder();
+      wavRecorderRef.current = recorder;
+      await recorder.start();
 
-      const options = mimeType ? { mimeType } : {};
-      const mediaRecorder = new MediaRecorder(stream, options);
-      mediaRecorderRef.current = mediaRecorder;
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        const recordedType = mediaRecorder.mimeType || mimeType || 'audio/webm';
-        const audioBlob = new Blob(audioChunksRef.current, { type: recordedType });
-        stream.getTracks().forEach(track => track.stop());
-        handleAudioCaptured(audioBlob);
-      };
-
-
-      mediaRecorder.start();
       setUiState('recording');
 
       timerIntervalRef.current = setInterval(() => {
@@ -118,14 +87,24 @@ export default function VoiceQA() {
     }
   };
 
-  const stopRecording = () => {
+  const stopRecording = async () => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
     }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop();
+    
+    if (wavRecorderRef.current) {
+      try {
+        const audioBlob = await wavRecorderRef.current.stop();
+        wavRecorderRef.current = null;
+        handleAudioCaptured(audioBlob);
+      } catch (err) {
+        console.error('Error stopping audio recorder:', err);
+        setErrorMessage('Failed to capture audio from microphone.');
+        setUiState('error');
+      }
     }
   };
+
 
   const startStepAnimation = () => {
     setActiveStepIndex(0);

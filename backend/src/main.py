@@ -148,7 +148,19 @@ async def ask_voice_query(
             detail=f"Audio size ({len(audio_bytes):,} bytes) exceeds maximum limit of 10MB.",
         )
 
+    print(f"\n[API /api/ask] Received voice upload: filename='{filename}', content_type='{content_type}', size={len(audio_bytes):,} bytes, language_hint='{language_hint}'")
+
+    # Diagnostic: save uploaded audio payload to inspect container headers
+    try:
+        debug_audio_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts", "last_uploaded.webm"))
+        with open(debug_audio_path, "wb") as f:
+            f.write(audio_bytes)
+        print(f"[API /api/ask] Saved uploaded audio to {debug_audio_path}")
+    except Exception as e:
+        print(f"[API /api/ask] Failed to save debug audio: {e}")
+
     # 3. Execute End-to-End Voice RAG Pipeline
+
     pipeline_result = await run_rag_pipeline(
         audio_bytes=audio_bytes,
         audio_filename=filename,
@@ -156,7 +168,10 @@ async def ask_voice_query(
         strategy=strategy,
     )
 
+    print(f"[API /api/ask] Pipeline Result: transcript='{pipeline_result.get('transcript')}', query='{pipeline_result.get('query')}', answer='{pipeline_result.get('answer', '')[:80]}...', flags={pipeline_result.get('guardrail_flags')}, sources={len(pipeline_result.get('sources', []))}")
+
     return RAGResponse(**pipeline_result)
+
 
 
 

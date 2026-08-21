@@ -167,6 +167,7 @@ async def transcribe(
         }
 
     lang_code = normalize_language_code(language_hint)
+    print(f"[STT] Calling Sarvam Saaras v3: lang_code='{lang_code}', filename='{filename}', size={len(audio_bytes):,} bytes")
 
     try:
         raw_res = await _call_sarvam_stt_api(
@@ -181,6 +182,7 @@ async def transcribe(
         latency_ms = round((time.perf_counter() - t_start) * 1000, 2)
         transcript = raw_res.get("transcript", "").strip()
         detected_lang = raw_res.get("language_code") or language_hint
+        print(f"[STT] Sarvam Result: transcript='{transcript}', detected_lang='{detected_lang}', latency={latency_ms}ms")
 
         return {
             "text": transcript,
@@ -193,6 +195,8 @@ async def transcribe(
 
     except httpx.HTTPStatusError as http_err:
         latency_ms = round((time.perf_counter() - t_start) * 1000, 2)
+        print(f"[STT] Sarvam HTTP Status Error: {http_err.response.status_code} - {http_err.response.text}")
+
         status = http_err.response.status_code
         err_body = http_err.response.text
         return {
