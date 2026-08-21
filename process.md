@@ -11,15 +11,23 @@ Keep entries short. Newest at the top.
 
 ## STATUS SNAPSHOT (always keep this section current — overwrite, don't append)
 
-- **Current phase**: Phase 2 — Speech-to-Text
+- **Current phase**: Phase 3 — Retrieval + Generation + Harness
 - **Blocking issue**: none
-- **Next immediate task**: Task 2.2 — FastAPI endpoint for audio upload (`backend/src/main.py`)
+- **Next immediate task**: Task 3.1 — Generation service (`backend/src/generation.py`)
 - **Dataset subset in use**: Hindi (`hin`) + Tamil (`tam`), 5,536 points indexed in Qdrant Cloud (`msmarco_indic_rag`)
 - **Deployed?**: no
 
 ---
 
 ## LOG (append new entries at the top, most recent first)
+
+### 2026-08-22 — Agent (Task 2.2)
+- What was done: Built FastAPI server at `backend/src/main.py` with CORS middleware configured for React Vite frontend, health check diagnostics `GET /api/health`, and multipart audio upload endpoint `POST /api/ask` executing Sarvam STT transcription with request validation (file size bounds, allowed audio MIME types, and structured Pydantic models). Added integration tests in `backend/tests/test_main.py`.
+- Files changed: [backend/src/main.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/src/main.py), [backend/tests/test_main.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/tests/test_main.py), [backend/requirements.txt](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/requirements.txt), [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md).
+- What was verified/tested: Ran `pytest backend/tests/` — **16/16 tests passed** covering health check response, empty audio file rejection (HTTP 400), unsupported MIME types rejection (HTTP 415), and valid multipart audio payload transcription.
+- Decisions made: Structured response schema `AskAudioResponse` built with forward-compatible placeholder fields for Phase 3 end-to-end RAG synthesis.
+- Next task: Task 3.1 — Generation service (`backend/src/generation.py`).
+
 
 ### 2026-08-22 — Agent (Task 2.1)
 - What was done: Built async Speech-to-Text client at `backend/src/stt.py` integrating Sarvam AI's Saaras v3 REST API. Added BCP-47 language code normalization (`hi-IN`, `ta-IN`, `te-IN`, `bn-IN`, etc.), 5s timeout, tenacity exponential retry on transient network failures, and graceful error degradation. Built verification script `backend/scripts/test_stt.py` generating in-memory 16kHz audio and added unit tests in `backend/tests/test_stt.py`.
