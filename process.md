@@ -13,13 +13,31 @@ Keep entries short. Newest at the top.
 
 - **Current phase**: Phase 1 — Data Ingestion & Chunking
 - **Blocking issue**: none
-- **Next immediate task**: Task 1.2 — Embedding + indexing into Qdrant (`backend/scripts/ingest.py`)
-- **Dataset subset in use**: Hindi (`hin`) + Tamil (`tam`), 2,500 - 5,000 chunks
+- **Next immediate task**: Task 1.3 — Retrieval service (hybrid + strategy comparison) (`backend/src/retrieval.py`)
+- **Dataset subset in use**: Hindi (`hin`) + Tamil (`tam`), 5,536 points indexed in Qdrant Cloud (`msmarco_indic_rag`)
 - **Deployed?**: no
 
 ---
 
 ## LOG (append new entries at the top, most recent first)
+
+### 2026-08-22 — Agent (Task 1.2)
+- What was done: Built offline batch ingestion pipeline at `backend/scripts/ingest.py`. Connected to Qdrant Cloud cluster, created `msmarco_indic_rag` collection with 1024-d Cosine vectors, and created payload indexes on `language`, `strategy`, `source_doc_id`, `parent_id`, and `query_id`. Streamed validation splits for Hindi (`hin`) and Tamil (`tam`), processed all passages across all 4 chunking strategies, computed normalized dense embeddings via `BAAI/bge-m3`, and idempotently upserted points with UUID5 deterministic IDs.
+- Files changed: [backend/scripts/ingest.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/scripts/ingest.py), [context.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/context.md), [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md).
+- What was verified/tested: Verified live points in Qdrant Cloud collection `msmarco_indic_rag`:
+  - **Total points verified in Qdrant**: `5,536` points (status: `green`)
+  - **Breakdown by Strategy**:
+    - `passage_native`: 853 points
+    - `fixed_size`: 904 points
+    - `semantic`: 1,530 points
+    - `hierarchical_parent`: 853 points
+    - `hierarchical_child`: 1,396 points
+  - **Breakdown by Language**:
+    - `HIN` (Hindi): 3,414 points
+    - `TAM` (Tamil): 2,122 points
+- Decisions made: Ingested 50 diverse queries per language (~10 passages per query) generating 5,536 chunks covering all 4 chunking strategies to provide rich ground-truth retrieval testing without exceeding cloud quotas.
+- Next task: Task 1.3 — Retrieval service (hybrid + strategy comparison) (`backend/src/retrieval.py`).
+
 
 ### 2026-08-22 — Agent (Task 1.1)
 - What was done: Built production chunking strategies module at `backend/src/chunking.py` implementing all 4 strategies: `passage_native`, `fixed_size`, `semantic`, and `hierarchical` + unified router `chunk_document`. Documented trade-off analysis (precision vs. context, compute cost, latency, when each wins) in the module docstring. Added Indic Unicode preservation rules to prevent akshara/matra corruption. Added automated unit tests in `backend/tests/test_chunking.py`.

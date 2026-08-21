@@ -66,8 +66,16 @@ unit — treat that as your baseline chunk, not your only chunk.
 - Deadline: **August 22, 2026, 11:59 PM**. No resubmissions.
 - Submission needs: GitHub repo link, live working link, 90s team/process video, full demo
   video, both videos posted on Instagram AND X by every team member with `#RAGInGoa`.
-- **Dataset subset decision (Task 0.3)**:
-  - Selected Languages: **Hindi (`hin`)** and **Tamil (`tam`)** (with Bengali `ben` as optional extension).
-  - Target Volume: **2,500 - 5,000 total chunks** sampled from the `is_selected=1` ground truth passages and diverse queries.
-  - Rationale: Fully tests multilingual hybrid retrieval and chunking strategies (native, fixed, semantic, hierarchical) across Indic languages while fitting within Qdrant free-tier and enabling rapid ingestion and sub-200ms retrieval benchmarking.
+- **Dataset subset decision & indexed stats (Tasks 0.3 & 1.2)**:
+  - Selected Languages: **Hindi (`hin`)** and **Tamil (`tam`)**.
+  - Verified Indexed Points in Qdrant Cloud (`msmarco_indic_rag`): **5,536 total points**
+    - Hindi: 3,414 chunks
+    - Tamil: 2,122 chunks
+    - `passage_native`: 853 chunks
+    - `fixed_size`: 904 chunks
+    - `semantic`: 1,530 chunks
+    - `hierarchical_parent`: 853 chunks
+    - `hierarchical_child`: 1,396 chunks
+  - Embedding: `BAAI/bge-m3` (1024-dimensional normalized dense vectors).
+
 
