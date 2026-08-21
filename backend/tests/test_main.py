@@ -41,17 +41,16 @@ def test_ask_endpoint_unsupported_mime_rejected():
     assert "unsupported" in response.json()["detail"].lower()
 
 
-def test_ask_endpoint_valid_audio_payload():
-    """Verify POST /api/ask accepts valid audio file and returns structured response."""
-    dummy_wav = io.BytesIO(b"RIFF....WAVEfmt ....data....fakeaudiobytes")
+def test_ask_text_endpoint_success():
+    """Verify POST /api/ask/text executes complete RAG pipeline on text query."""
     response = client.post(
-        "/api/ask",
-        files={"file": ("test.wav", dummy_wav, "audio/wav")},
-        data={"language_hint": "hin"},
+        "/api/ask/text",
+        json={"query": "कॉर्पोरेशन क्या है?", "language": "hin", "top_k": 2},
     )
     assert response.status_code == 200
     data = response.json()
-    assert "transcript" in data
-    assert "stt_latency_ms" in data
-    assert "success" in data
-    assert "total_latency_ms" in data
+    assert "answer" in data
+    assert "sources" in data
+    assert "timings_ms" in data
+    assert "guardrail_flags" in data
+    assert data["success"] is True

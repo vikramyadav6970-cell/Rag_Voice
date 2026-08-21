@@ -1,7 +1,7 @@
-"""FastAPI Application Entrypoint — Voice-Enabled Indic RAG API.
+"""FastAPI Application Entrypoint — Voice & Text Indic RAG API.
 
-Provides endpoints for audio question transcription (/api/ask),
-health diagnostics (/api/health), and CORS-enabled frontend communication.
+Provides endpoints for audio question submission (/api/ask),
+direct text query evaluation (/api/ask/text), and system health diagnostics (/api/health).
 """
 
 from __future__ import annotations
@@ -18,11 +18,10 @@ from pydantic import BaseModel, Field
 
 # Ensure backend root is on sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from src.stt import transcribe
+from src.harness import run_rag_pipeline
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-# Constants for audio validation
 MAX_AUDIO_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB limit for voice Q&A
 ALLOWED_AUDIO_MIME_TYPES = {
     "audio/wav",
@@ -36,7 +35,7 @@ ALLOWED_AUDIO_MIME_TYPES = {
     "audio/aac",
     "audio/m4a",
     "audio/x-m4a",
-    "application/octet-stream",  # Fallback from some browser media recorders
+    "application/octet-stream",
 }
 
 # --- Pydantic Schema Models ---
@@ -49,27 +48,43 @@ class HealthResponse(BaseModel):
     version: str = Field(default="0.1.0", description="API version")
 
 
-class AskAudioResponse(BaseModel):
-    """Response payload for audio question submission."""
-    transcript: str = Field(default="", description="Transcribed query text")
-    detected_language: Optional[str] = Field(default=None, description="Detected or normalized language code")
-    stt_latency_ms: float = Field(default=0.0, description="Sarvam STT execution time in milliseconds")
-    success: bool = Field(default=True, description="Whether transcription succeeded")
-    error: Optional[str] = Field(default=None, description="Error message if transcription failed")
+class AskTextRequest(BaseModel):
+    """Direct text question request payload."""
+    query: str = Field(..., description="User question in natural language (Hindi/Tamil/English)")
+    language: Optional[str] = Field(default=None, description="Optional language filter (e.g. 'hin', 'tam')")
+    strategy: Optional[str] = Field(default=None, description="Optional chunking strategy override")
+    top_k: int = Field(default=4, description="Number of context passages to retrieve")
 
-    # Placeholders for Phase 3 end-to-end RAG pipeline
-    answer: Optional[str] = Field(default=None, description="Grounded LLM response (Phase 3)")
-    context_chunks: List[Dict[str, Any]] = Field(default_factory=list, description="Retrieved evidence chunks")
-    retrieval_latency_ms: Optional[float] = Field(default=None, description="Retrieval latency in ms")
-    generation_latency_ms: Optional[float] = Field(default=None, description="Generation latency in ms")
-    total_latency_ms: Optional[float] = Field(default=None, description="End-to-end processing latency in ms")
+
+class SourceCitation(BaseModel):
+    """Source passage evidence citation."""
+    chunk_id: Optional[str] = None
+    source_doc_id: Optional[str] = None
+    strategy: Optional[str] = None
+    score: Optional[float] = None
+    text: Optional[str] = None
+    resolved_context: Optional[str] = None
+    language: Optional[str] = None
+
+
+class RAGResponse(BaseModel):
+    """Unified full-pipeline RAG response."""
+    transcript: str = Field(default="", description="Transcribed audio or user query")
+    query: str = Field(default="", description="Cleaned question processed by retrieval")
+    answer: str = Field(default="", description="Synthesized grounded answer from LLM")
+    sources: List[SourceCitation] = Field(default_factory=list, description="Retrieved evidence chunks")
+    timings_ms: Dict[str, float] = Field(default_factory=dict, description="Per-stage latency telemetry")
+    guardrail_flags: Dict[str, Any] = Field(default_factory=dict, description="Safety and grounding validation flags")
+    detected_language: Optional[str] = Field(default=None, description="Detected or specified language")
+    success: bool = Field(default=True, description="Overall pipeline success status")
+    errors: Dict[str, str] = Field(default_factory=dict, description="Per-stage error or warning details")
 
 
 # --- FastAPI Application Setup ---
 
 app = FastAPI(
     title="Indic Voice-Enabled RAG API",
-    description="Multilingual Voice RAG Service for HH Goa 2026",
+    description="Multilingual Voice RAG Service for HH Goa 2026 (STT -> Retrieve -> Generate -> Guardrails)",
     version="0.1.0",
 )
 
@@ -77,7 +92,7 @@ app = FastAPI(
 frontend_origin_env = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000,http://localhost:5173")
 allowed_origins = [orig.strip() for orig in frontend_origin_env.split(",") if orig.strip()]
 if "*" not in allowed_origins:
-    allowed_origins.append("*")  # Permissive fallback during development
+    allowed_origins.append("*")
 
 app.add_middleware(
     CORSMiddleware,
@@ -94,17 +109,13 @@ async def health_check() -> HealthResponse:
     return HealthResponse()
 
 
-@app.post("/api/ask", response_model=AskAudioResponse, tags=["Voice RAG"])
+@app.post("/api/ask", response_model=RAGResponse, tags=["Voice RAG"])
 async def ask_voice_query(
     file: UploadFile = File(..., description="Recorded audio file (WAV/MP3/WebM/OGG)"),
     language_hint: Optional[str] = Form(None, description="Optional language hint (e.g. 'hin', 'tam', 'hi-IN')"),
-) -> AskAudioResponse:
-    """Accept voice recording, transcribe with Sarvam AI, and return transcript with latency.
-
-    Full retrieval and LLM answer generation is linked in Phase 3.
-    """
-    t_start = time.perf_counter()
-
+    strategy: Optional[str] = Form(None, description="Optional chunking strategy filter"),
+) -> RAGResponse:
+    """Accept voice recording, transcribe with Sarvam AI, retrieve grounded context, and synthesize answer."""
     # 1. Validate MIME type
     content_type = (file.content_type or "").lower().split(";")[0].strip()
     filename = file.filename or "recording.wav"
@@ -137,23 +148,34 @@ async def ask_voice_query(
             detail=f"Audio size ({len(audio_bytes):,} bytes) exceeds maximum limit of 10MB.",
         )
 
-    # 3. Transcribe with Sarvam AI STT
-    stt_res = await transcribe(
+    # 3. Execute End-to-End Voice RAG Pipeline
+    pipeline_result = await run_rag_pipeline(
         audio_bytes=audio_bytes,
         language_hint=language_hint,
-        filename=filename,
+        strategy=strategy,
     )
 
-    total_latency = round((time.perf_counter() - t_start) * 1000, 2)
+    return RAGResponse(**pipeline_result)
 
-    return AskAudioResponse(
-        transcript=stt_res.get("text", ""),
-        detected_language=stt_res.get("detected_language"),
-        stt_latency_ms=stt_res.get("latency_ms", 0.0),
-        success=stt_res.get("success", False),
-        error=stt_res.get("error"),
-        total_latency_ms=total_latency,
+
+@app.post("/api/ask/text", response_model=RAGResponse, tags=["Text RAG"])
+async def ask_text_query(request: AskTextRequest) -> RAGResponse:
+    """Execute grounded RAG pipeline directly from text query without STT step."""
+    clean_q = request.query.strip()
+    if not clean_q:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Query string cannot be empty.",
+        )
+
+    pipeline_result = await run_rag_pipeline(
+        query=clean_q,
+        language_hint=request.language,
+        strategy=request.strategy,
+        top_k=request.top_k,
     )
+
+    return RAGResponse(**pipeline_result)
 
 
 if __name__ == "__main__":

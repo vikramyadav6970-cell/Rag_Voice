@@ -11,15 +11,22 @@ Keep entries short. Newest at the top.
 
 ## STATUS SNAPSHOT (always keep this section current — overwrite, don't append)
 
-- **Current phase**: Phase 3 — Retrieval + Generation + Harness
+- **Current phase**: Phase 4 — Guardrails
 - **Blocking issue**: none
-- **Next immediate task**: Task 3.2 — Harness: orchestrate STT -> retrieve -> generate (`backend/src/harness.py`)
+- **Next immediate task**: Task 4.1 — Input guardrails (`backend/src/guardrails.py`)
 - **Dataset subset in use**: Hindi (`hin`) + Tamil (`tam`), 5,536 points indexed in Qdrant Cloud (`msmarco_indic_rag`)
 - **Deployed?**: no
 
 ---
 
 ## LOG (append new entries at the top, most recent first)
+
+### 2026-08-22 — Agent (Task 3.2)
+- What was done: Built full pipeline orchestration harness at `backend/src/harness.py` implementing an explicit Python Async State Machine (`RAGPipelineHarness`). Designed isolated sub-steps: `transcribe_audio` -> `validate_input` (Phase 4 hook) -> `retrieve_context` -> `check_retrieval_confidence` (Phase 4 hook) -> `generate_answer` -> `check_grounding` (Phase 4 hook) -> `return_result`. Added per-step error fallbacks, shared latency telemetry mapping (`stt_ms`, `retrieval_ms`, `generation_ms`, `retrieval_to_output_ms`, `total_pipeline_ms`), and wired it into `backend/src/main.py` for both voice (`/api/ask`) and text (`/api/ask/text`). Added unit tests in `backend/tests/test_harness.py`.
+- Files changed: [backend/src/harness.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/src/harness.py), [backend/src/main.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/src/main.py), [backend/tests/test_harness.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/tests/test_harness.py), [backend/tests/test_main.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/tests/test_main.py), [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md).
+- What was verified/tested: Ran `pytest backend/tests/` — **22/22 tests passed** across chunking, hybrid retrieval, STT, LLM generation, harness orchestration state transitions, empty audio handling, and FastAPI text/audio routes.
+- Next task: Task 4.1 — Input guardrails (`backend/src/guardrails.py`).
+
 
 ### 2026-08-22 — Agent (Task 3.1)
 - What was done: Built grounded generation service at `backend/src/generation.py` with OpenAI-compatible API client configured for xAI `grok-2-mini`. Designed strict grounding system prompt instructing the model to answer strictly from retrieved context passages and explicitly refuse when evidence is insufficient. Implemented streaming Time-To-First-Token (TTFT) tracking, tenacity retry policy on network errors, and an extractive grounded fallback for offline/test environments. Built unit tests in `backend/tests/test_generation.py` and test script `backend/scripts/test_generation.py`.
