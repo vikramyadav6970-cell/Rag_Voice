@@ -13,13 +13,21 @@ Keep entries short. Newest at the top.
 
 - **Current phase**: Phase 1 — Data Ingestion & Chunking
 - **Blocking issue**: none
-- **Next immediate task**: Task 1.1 — Chunking strategies module (`backend/src/chunking.py`)
+- **Next immediate task**: Task 1.2 — Embedding + indexing into Qdrant (`backend/scripts/ingest.py`)
 - **Dataset subset in use**: Hindi (`hin`) + Tamil (`tam`), 2,500 - 5,000 chunks
 - **Deployed?**: no
 
 ---
 
 ## LOG (append new entries at the top, most recent first)
+
+### 2026-08-22 — Agent (Task 1.1)
+- What was done: Built production chunking strategies module at `backend/src/chunking.py` implementing all 4 strategies: `passage_native`, `fixed_size`, `semantic`, and `hierarchical` + unified router `chunk_document`. Documented trade-off analysis (precision vs. context, compute cost, latency, when each wins) in the module docstring. Added Indic Unicode preservation rules to prevent akshara/matra corruption. Added automated unit tests in `backend/tests/test_chunking.py`.
+- Files changed: [backend/src/chunking.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/src/chunking.py), [backend/tests/test_chunking.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/tests/test_chunking.py), [backend/requirements.txt](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/requirements.txt), [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md).
+- What was verified/tested: Ran `pytest backend/tests/test_chunking.py` — 6/6 tests passed covering chunk dict structure, token counts, deterministic 16-hex `chunk_id` hashing, sentence splitting with Indic danda (`।`), mock semantic cosine threshold cuts, and hierarchical parent-child pointer links.
+- Decisions made: Word-boundary sliding window with `tiktoken` tracking chosen for `fixed_size` and `hierarchical_child` to avoid splitting Indic conjunct characters; cosine similarity drop detection chosen for `semantic` chunking.
+- Next task: Task 1.2 — Embedding + indexing into Qdrant (`backend/scripts/ingest.py`).
+
 
 ### 2026-08-22 — Agent (Task 0.3)
 - What was done: Confirmed dataset access to `ai4bharat/MSMARCO-XI` using `fastparquet` and `huggingface_hub` streaming with `HF_TOKEN`. Inspected schema, column metadata, and sample records for Hindi (`hin`). Determined dataset subset size and strategy. Cleaned up scratch exploration files.

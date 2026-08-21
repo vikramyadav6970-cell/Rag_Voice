@@ -1,1 +1,25 @@
-# Requirements for backend
+# Core API & Server
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.10.0
+python-dotenv>=1.0.1
+httpx>=0.28.0
+tenacity>=9.0.0
+
+# Vector DB & Embeddings
+qdrant-client>=1.12.0
+sentence-transformers>=3.3.0
+torch>=2.4.0
+numpy>=1.26.0
+tiktoken>=0.8.0
+
+# LLM Generation & Orchestration
+openai>=1.60.0
+langgraph>=0.2.60
+langchain-core>=0.3.30
+
+# Dataset & Data Processing
+datasets>=3.2.0
+huggingface_hub>=0.27.0
+fastparquet>=2024.11.0
+duckdb>=1.1.0
