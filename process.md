@@ -13,13 +13,20 @@ Keep entries short. Newest at the top.
 
 - **Current phase**: Phase 3 — Retrieval + Generation + Harness
 - **Blocking issue**: none
-- **Next immediate task**: Task 3.1 — Generation service (`backend/src/generation.py`)
+- **Next immediate task**: Task 3.2 — Harness: orchestrate STT -> retrieve -> generate (`backend/src/harness.py`)
 - **Dataset subset in use**: Hindi (`hin`) + Tamil (`tam`), 5,536 points indexed in Qdrant Cloud (`msmarco_indic_rag`)
 - **Deployed?**: no
 
 ---
 
 ## LOG (append new entries at the top, most recent first)
+
+### 2026-08-22 — Agent (Task 3.1)
+- What was done: Built grounded generation service at `backend/src/generation.py` with OpenAI-compatible API client configured for xAI `grok-2-mini`. Designed strict grounding system prompt instructing the model to answer strictly from retrieved context passages and explicitly refuse when evidence is insufficient. Implemented streaming Time-To-First-Token (TTFT) tracking, tenacity retry policy on network errors, and an extractive grounded fallback for offline/test environments. Built unit tests in `backend/tests/test_generation.py` and test script `backend/scripts/test_generation.py`.
+- Files changed: [backend/src/generation.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/src/generation.py), [backend/scripts/test_generation.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/scripts/test_generation.py), [backend/tests/test_generation.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/tests/test_generation.py), [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md).
+- What was verified/tested: Ran `pytest backend/tests/` — **19/19 tests passed** across chunking, hybrid retrieval, STT, FastAPI routes, and LLM generation (including explicit refusal on empty context and structured prompt formatting).
+- Next task: Task 3.2 — Harness: orchestrate STT -> retrieve -> generate (`backend/src/harness.py`).
+
 
 ### 2026-08-22 — Agent (Task 2.2)
 - What was done: Built FastAPI server at `backend/src/main.py` with CORS middleware configured for React Vite frontend, health check diagnostics `GET /api/health`, and multipart audio upload endpoint `POST /api/ask` executing Sarvam STT transcription with request validation (file size bounds, allowed audio MIME types, and structured Pydantic models). Added integration tests in `backend/tests/test_main.py`.
