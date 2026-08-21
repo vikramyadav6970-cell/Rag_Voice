@@ -13,13 +13,20 @@ Keep entries short. Newest at the top.
 
 - **Current phase**: Phase 6 — Frontend (React)
 - **Blocking issue**: none
-- **Next immediate task**: Task 6.1 — Scaffold + mic capture (`frontend/src/`)
+- **Next immediate task**: Task 6.2 — API integration (`frontend/src/api/client.js`)
 - **Dataset subset in use**: Hindi (`hin`) + Tamil (`tam`), 5,536 points indexed in Qdrant Cloud (`msmarco_indic_rag`)
 - **Deployed?**: no
 
 ---
 
 ## LOG (append new entries at the top, most recent first)
+
+### 2026-08-22 — Agent (Task 6.1)
+- What was done: Built React 18 + Vite frontend foundation. Created modern glassmorphism design system in `frontend/src/index.css` with dark mode, pulsing audio visualizer bars, and telemetry badges. Built core component `frontend/src/components/VoiceQA.jsx` utilizing browser `MediaRecorder` API with 7 distinct UI states (`idle`, `recording`, `uploading`, `waiting-for-answer`, `showing-answer`, `error`, `guardrail-refused`), source citations accordion, and latency telemetry pills. Updated `frontend/src/App.jsx` with language selector (Hindi, Tamil, English) and chunking strategy selector.
+- Files changed: [frontend/src/components/VoiceQA.jsx](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/frontend/src/components/VoiceQA.jsx), [frontend/src/App.jsx](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/frontend/src/App.jsx), [frontend/src/index.css](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/frontend/src/index.css), [frontend/index.html](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/frontend/index.html), [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md).
+- What was verified/tested: Ran `npm run build` in `frontend/` — built Vite production bundle successfully in 10s with 0 errors.
+- Next task: Task 6.2 — API integration (`frontend/src/api/client.js`).
+
 
 ### 2026-08-22 — Agent (Task 5.1)
 - What was done: Built latency benchmarking suite at `backend/scripts/benchmark_latency.py`. Executed 30 diverse multilingual queries across Hindi (`hin`), Tamil (`tam`), and English (`en`). Captured fine-grained sub-stage timings and computed P50, P70, and P100 max percentiles using `numpy.percentile`. Generated markdown and JSON reports at `backend/reports/latency_report.md` and `backend/reports/latency_report.json`, and added a new "Latency Results" section to `README.md`.
