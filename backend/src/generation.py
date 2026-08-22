@@ -250,6 +250,13 @@ async def generate(
         {"role": "user", "content": user_prompt},
     ]
 
+    print("\n" + "=" * 80)
+    print("[GENERATION] === FULL PROMPT SENT TO MODEL ===")
+    print(f"Model: {active_model} | Temperature: {temperature} | Max Tokens: {max_tokens} | Base URL: {os.getenv('GENERATION_BASE_URL', DEFAULT_BASE_URL)}")
+    for m_idx, msg in enumerate(messages, 1):
+        print(f"\n--- [Message {m_idx}: {msg['role'].upper()}] ---\n{msg['content']}")
+    print("=" * 80 + "\n")
+
     try:
         client = _get_async_openai_client()
         answer, ttft_ms = await _execute_llm_completion(
@@ -261,6 +268,7 @@ async def generate(
         )
 
         total_latency_ms = round((time.perf_counter() - t_start) * 1000, 2)
+        print(f"[GENERATION] LLM Output Received in {total_latency_ms}ms (TTFT: {ttft_ms}ms):\n{answer}\n")
 
         # Check if model expressed lack of grounding/knowledge
         lower_ans = answer.lower()

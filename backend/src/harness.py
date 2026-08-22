@@ -266,23 +266,39 @@ class RAGPipelineHarness:
         """Execute all pipeline steps sequentially with independent state tracking."""
         total_start = time.perf_counter()
 
+        print(f"\n[HARNESS] ======================================================================")
+        print(f"[HARNESS] STARTING PIPELINE EXECUTION for query: '{ctx.query}' (audio={bool(ctx.audio_bytes)})")
+        print(f"[HARNESS] ======================================================================")
+
         # Step 1: STT
+        print(f"[HARNESS] -> [Step 1/6] Running step_transcribe_audio...")
         await self.step_transcribe_audio(ctx)
+        print(f"[HARNESS] <- [Step 1/6] Completed step_transcribe_audio (query='{ctx.query}', stop_early={ctx.stop_early})")
 
         # Step 2: Validate Input (Phase 4 hook)
+        print(f"[HARNESS] -> [Step 2/6] Running step_validate_input...")
         await self.step_validate_input(ctx)
+        print(f"[HARNESS] <- [Step 2/6] Completed step_validate_input (flags={ctx.guardrail_flags}, stop_early={ctx.stop_early})")
 
         # Step 3: Retrieve Context
+        print(f"[HARNESS] -> [Step 3/6] Running step_retrieve_context...")
         await self.step_retrieve_context(ctx)
+        print(f"[HARNESS] <- [Step 3/6] Completed step_retrieve_context (retrieved {len(ctx.context_chunks)} chunks, stop_early={ctx.stop_early})")
 
         # Step 4: Check Retrieval Confidence (Phase 4 hook)
+        print(f"[HARNESS] -> [Step 4/6] Running step_check_retrieval_confidence...")
         await self.step_check_retrieval_confidence(ctx)
+        print(f"[HARNESS] <- [Step 4/6] Completed step_check_retrieval_confidence (confident={ctx.guardrail_flags.get('retrieval_confident')}, stop_early={ctx.stop_early})")
 
         # Step 5: Generate Grounded Answer
+        print(f"[HARNESS] -> [Step 5/6] Running step_generate_answer...")
         await self.step_generate_answer(ctx)
+        print(f"[HARNESS] <- [Step 5/6] Completed step_generate_answer (answer='{ctx.answer[:80]}...', stop_early={ctx.stop_early})")
 
         # Step 6: Check Output Grounding (Phase 4 hook)
+        print(f"[HARNESS] -> [Step 6/6] Running step_check_grounding...")
         await self.step_check_grounding(ctx)
+        print(f"[HARNESS] <- [Step 6/6] Completed step_check_grounding (output_grounded={ctx.guardrail_flags.get('output_grounded')}, stop_early={ctx.stop_early})")
 
         # Step 7: Finalize Timings
         ctx.timings_ms["total_pipeline_ms"] = round((time.perf_counter() - total_start) * 1000, 2)
@@ -290,6 +306,7 @@ class RAGPipelineHarness:
         retrieval_ms = ctx.timings_ms.get("retrieval_ms", 0.0)
         generation_ms = ctx.timings_ms.get("generation_ms", 0.0)
         ctx.timings_ms["retrieval_to_output_ms"] = round(retrieval_ms + generation_ms, 2)
+        print(f"[HARNESS] PIPELINE FINISHED: Total={ctx.timings_ms['total_pipeline_ms']}ms | Success={ctx.success} | Answer='{ctx.answer[:60]}...'")
 
         return ctx
 

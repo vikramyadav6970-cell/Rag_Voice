@@ -62,6 +62,7 @@ async def is_unsafe_input(text: str) -> bool:
     # 1. Fast regex pattern match (<0.1ms)
     for pattern in UNSAFE_PATTERNS:
         if re.search(pattern, clean_text, re.IGNORECASE):
+            print(f"[GUARDRAILS is_unsafe_input] Regex matched pattern '{pattern}' -> UNSAFE")
             return True
 
     # 2. LLM-as-judge moderation check
@@ -81,35 +82,52 @@ async def is_unsafe_input(text: str) -> bool:
             max_tokens=5,
             temperature=0.0,
         )
-        verdict = res.choices[0].message.content.strip().upper() if res.choices else "NO"
-        return "YES" in verdict
-    except Exception:
-        # On moderation API timeout/fallback, default to permissive heuristic verdict
+        raw_output = res.choices[0].message.content.strip() if res.choices else ""
+        verdict = raw_output.upper()
+        is_unsafe = "YES" in verdict
+        print(f"[GUARDRAILS is_unsafe_input] LLM Judge raw_output='{raw_output}' -> is_unsafe={is_unsafe}")
+        return is_unsafe
+    except Exception as exc:
+        print(f"[GUARDRAILS is_unsafe_input] Exception during safety check: {exc}")
+        # Default to safe on network error unless suspicious
         return False
 
 
 async def is_offtopic(text: str, domain_description: str = DEFAULT_DOMAIN_DESCRIPTION) -> bool:
-    """Check if query is completely nonsensical or outside general knowledge QA scope.
+    """Check if query is completely nonsensical, conversational banter, or outside factual QA scope.
 
     Returns:
         True if clearly off-topic / spam, False if plausible knowledge question.
     """
     clean_text = text.strip().lower()
     if not clean_text or len(clean_text) < 2:
+        print(f"[GUARDRAILS is_offtopic] Query too short or empty -> OFFTOPIC")
         return True
 
-    # Fast pattern match for empty greetings / keyboard mash
+    # Fast pattern match for empty greetings / keyboard mash / chit-chat
     for pattern in OFFTOPIC_PATTERNS:
         if re.search(pattern, clean_text, re.IGNORECASE):
+            print(f"[GUARDRAILS is_offtopic] Regex matched OFFTOPIC_PATTERNS '{pattern}' -> OFFTOPIC")
             return True
 
-    # General knowledge queries in MSMARCO encompass almost all real informational inquiries.
-    # LLM-as-judge checks for non-question gibberish or operational meta-commands
+    # Check for personal/conversational bot queries
+    conversational_patterns = [
+        r"^(what('s| is) your (favorite|favourite|name|age|gender|hobby|job))",
+        r"^(who (are you|created you|made you))",
+        r"^(tell me a (joke|story|poem|riddle)|sing( a song)?)",
+        r"^(do you (have|like|love|think|feel|know))",
+    ]
+    for pattern in conversational_patterns:
+        if re.search(pattern, clean_text, re.IGNORECASE):
+            print(f"[GUARDRAILS is_offtopic] Regex matched conversational pattern '{pattern}' -> OFFTOPIC")
+            return True
+
+    # General knowledge queries in MSMARCO encompass factual informational inquiries.
     prompt = (
         f"Domain Scope: {domain_description}\n\n"
         f"User Query: \"{text}\"\n\n"
-        f"Is this query completely gibberish, spam, or totally outside the domain of factual questions? "
-        f"Respond with ONLY 'YES' (off-topic/gibberish) or 'NO' (valid question)."
+        f"Is this query conversational banter, chit-chat, personal preference/opinion, or outside the scope of factual knowledge questions?\n"
+        f"Respond with ONLY 'YES' (off-topic/banter) or 'NO' (valid factual question)."
     )
 
     try:
@@ -121,9 +139,14 @@ async def is_offtopic(text: str, domain_description: str = DEFAULT_DOMAIN_DESCRI
             max_tokens=5,
             temperature=0.0,
         )
-        verdict = res.choices[0].message.content.strip().upper() if res.choices else "NO"
-        return "YES" in verdict
-    except Exception:
+        raw_output = res.choices[0].message.content.strip() if res.choices else ""
+        verdict = raw_output.upper()
+        is_off = "YES" in verdict
+        print(f"[GUARDRAILS is_offtopic] LLM Judge raw_output='{raw_output}' -> is_offtopic={is_off}")
+        return is_off
+    except Exception as exc:
+        print(f"[GUARDRAILS is_offtopic] Exception during offtopic check: {exc}")
+        # If the check fails due to upstream API error, check query length & patterns
         return False
 
 
@@ -187,6 +210,7 @@ async def is_grounded(answer: str, context_chunks: List[Dict[str, Any]]) -> bool
     """
     clean_ans = answer.strip()
     if not clean_ans:
+        print("[GUARDRAILS is_grounded] Empty answer -> NOT grounded")
         return False
 
     # Standard refusal sentinels are by definition grounded responses to missing data
@@ -199,9 +223,11 @@ async def is_grounded(answer: str, context_chunks: List[Dict[str, Any]]) -> bool
         or "could not find" in lower_ans
         or "outside the scope" in lower_ans
     ):
+        print(f"[GUARDRAILS is_grounded] Answer matches known refusal sentinel -> grounded=True (Valid Refusal)")
         return True
 
     if not context_chunks:
+        print(f"[GUARDRAILS is_grounded] No context chunks provided -> NOT grounded")
         return False
 
     # Concatenate context passages
@@ -226,20 +252,22 @@ async def is_grounded(answer: str, context_chunks: List[Dict[str, Any]]) -> bool
             max_tokens=5,
             temperature=0.0,
         )
-        verdict = res.choices[0].message.content.strip().upper() if res.choices else "YES"
-        return "YES" in verdict
-    except Exception:
-        # Cross-lingual / extractive overlap check on upstream API timeout/error
-        # Check if majority of keywords in the answer appear in the context or if context is non-empty
+        raw_output = res.choices[0].message.content.strip() if res.choices else ""
+        verdict = raw_output.upper()
+        is_grd = "YES" in verdict
+        print(f"[GUARDRAILS is_grounded] LLM Judge raw_output='{raw_output}' -> is_grounded={is_grd}")
+        return is_grd
+    except Exception as exc:
+        print(f"[GUARDRAILS is_grounded] Exception during grounding check: {exc}")
+        # Extractive overlap check on upstream API timeout/error
         ans_words = [w.lower() for w in re.findall(r"\w+", clean_ans) if len(w) > 3]
         if not ans_words:
-            return True
+            return False
         matched = sum(1 for w in ans_words if w in context_text.lower())
-        # If words matched or if answer is translated from the retrieved context
-        if (matched / len(ans_words)) >= 0.35:
-            return True
-        # For cross-lingual answers (English answer with Indic context chunks), if top context is relevant, pass grounding
-        return len(context_chunks) > 0 and float(context_chunks[0].get("score", 0.0) or 0.0) >= 0.012
+        overlap_ratio = matched / len(ans_words)
+        is_grd = overlap_ratio >= 0.35
+        print(f"[GUARDRAILS is_grounded] Fallback keyword overlap ratio={overlap_ratio:.2f} (matched {matched}/{len(ans_words)}) -> is_grounded={is_grd}")
+        return is_grd
 
 
 

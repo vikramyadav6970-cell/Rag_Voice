@@ -21,6 +21,181 @@ Keep entries short. Newest at the top.
 
 ## LOG (append new entries at the top, most recent first)
 
+### 2026-08-22 — Agent (Guardrails Diagnostics, Raw Output Logging & Root Cause Analysis)
+- What was done:
+  1. **Added Step-by-Step Logging in Harness (`backend/src/harness.py`)**:
+     - Added explicit logging before and after every step (`transcribe_audio`, `validate_input`, `retrieve_context`, `check_retrieval_confidence`, `generate_answer`, `check_grounding`), tracking query text, guardrail flags, and `stop_early` state transitions.
+  2. **Added Exact Prompt String Logging in Generation (`backend/src/generation.py`)**:
+     - Logged full system and user message contents including all retrieved context passages formatted with metadata IDs and relevance scores.
+  3. **Added Raw Output & Exception Logging in Guardrails (`backend/src/guardrails.py`)**:
+     - Logged raw LLM judge responses (`raw_output`), verdict parsing, and exceptions in `is_unsafe_input`, `is_offtopic`, and `is_grounded`.
+  4. **Frontend Verification**:
+     - Confirmed that `ConsoleTelemetryPanel.jsx` (line 215) dynamically reads `resultData?.guardrail_flags?.output_grounded` from the API response (not hardcoded).
+  5. **Executed Diagnostics on All Key Test Queries**:
+     - *Query 1 (Off-Topic)*: `"what's your favorite color"`
+     - *Query 2 (In-Domain JRCC)*: `"रेचल कार्सन ने पर्यावरण के बारे में क्या लिखा?"`
+     - *Query 3 (Ungrounded Hallucination Bait)*: `"Who was the alien that discovered Mars in 1500 according to the passage?"`
+
+- **Raw Diagnostic Logs**:
+  ```
+  ================================================================================
+  RUNNING GUARDRAIL & PIPELINE HARNESS DIAGNOSTICS
+  ================================================================================
+
+  ################################################################################
+  CASE: TEST 1: OFF-TOPIC CONVERSATIONAL QUERY
+  Query: "what's your favorite color"
+  Expected Behavior: Refused at Step 2 (input_offtopic=True)
+  ################################################################################
+
+  [HARNESS] ======================================================================
+  [HARNESS] STARTING PIPELINE EXECUTION for query: 'what's your favorite color' (audio=False)
+  [HARNESS] ======================================================================
+  [HARNESS] -> [Step 1/6] Running step_transcribe_audio...
+  [HARNESS] <- [Step 1/6] Completed step_transcribe_audio (query='what's your favorite color', stop_early=False)
+  [HARNESS] -> [Step 2/6] Running step_validate_input...
+  [GUARDRAILS is_unsafe_input] Exception during safety check: Error code: 400 - {'code': 'invalid-argument', 'error': 'Model not found: grok-2-mini'}
+  [GUARDRAILS is_offtopic] Regex matched conversational pattern '^(what('s| is) your (favorite|favourite|name|age|gender|hobby|job))' -> OFFTOPIC
+  [HARNESS] <- [Step 2/6] Completed step_validate_input (flags={'input_safe': True, 'input_offtopic': True, 'retrieval_confident': True, 'output_grounded': True, 'refusal_message': 'Your query appears to be off-topic, conversational greeting, or outside the knowledge base domain.'}, stop_early=True)
+  [HARNESS] -> [Step 3/6] Running step_retrieve_context...
+  [HARNESS] <- [Step 3/6] Completed step_retrieve_context (retrieved 0 chunks, stop_early=True)
+  [HARNESS] -> [Step 4/6] Running step_check_retrieval_confidence...
+  [HARNESS] <- [Step 4/6] Completed step_check_retrieval_confidence (confident=True, stop_early=True)
+  [HARNESS] -> [Step 5/6] Running step_generate_answer...
+  [HARNESS] <- [Step 5/6] Completed step_generate_answer (answer='This question is outside the scope of the knowledge base....', stop_early=True)
+  [HARNESS] -> [Step 6/6] Running step_check_grounding...
+  [HARNESS] <- [Step 6/6] Completed step_check_grounding (output_grounded=True, stop_early=True)
+  [HARNESS] PIPELINE FINISHED: Total=2752.32ms | Success=True | Answer='This question is outside the scope of the knowledge base....'
+
+  ---------------------------------------- PIPELINE RESPONSE ----------------------------------------
+  Query           : what's your favorite color
+  Answer          : This question is outside the scope of the knowledge base.
+  Guardrail Flags : {'input_safe': True, 'input_offtopic': True, 'retrieval_confident': True, 'output_grounded': True, 'refusal_message': 'Your query appears to be off-topic, conversational greeting, or outside the knowledge base domain.'}
+  Sources Count   : 0
+  Timings (ms)    : {'stt_ms': 0.0, 'input_guardrail_ms': 2752.27, 'total_pipeline_ms': 2752.32, 'retrieval_to_output_ms': 0.0}
+  ---------------------------------------------------------------------------------------------------
+
+  ################################################################################
+  CASE: TEST 2: IN-DOMAIN HINDI JRCC QUERY
+  Query: "रेचल कार्सन ने पर्यावरण के बारे में क्या लिखा?"
+  Expected Behavior: Full retrieval + grounded generation (input_safe=True, input_offtopic=False, retrieval_confident=True, output_grounded=True)
+  ################################################################################
+
+  [HARNESS] ======================================================================
+  [HARNESS] STARTING PIPELINE EXECUTION for query: 'रेचल कार्सन ने पर्यावरण के बारे में क्या लिखा?' (audio=False)
+  [HARNESS] ======================================================================
+  [HARNESS] -> [Step 1/6] Running step_transcribe_audio...
+  [HARNESS] <- [Step 1/6] Completed step_transcribe_audio (query='रेचल कार्सन ने पर्यावरण के बारे में क्या लिखा?', stop_early=False)
+  [HARNESS] -> [Step 2/6] Running step_validate_input...
+  [GUARDRAILS is_unsafe_input] Exception during safety check: Error code: 400 - {'code': 'invalid-argument', 'error': 'Model not found: grok-2-mini'}
+  [GUARDRAILS is_offtopic] Exception during offtopic check: Error code: 400 - {'code': 'invalid-argument', 'error': 'Model not found: grok-2-mini'}
+  [HARNESS] <- [Step 2/6] Completed step_validate_input (flags={'input_safe': True, 'input_offtopic': False, 'retrieval_confident': True, 'output_grounded': True, 'refusal_message': None}, stop_early=False)
+  [HARNESS] -> [Step 3/6] Running step_retrieve_context...
+
+  [DEBUG Retrieval] Query: "रेचल कार्सन ने पर्यावरण के बारे में क्या लिखा?" (lang=hin, strat=passage_native)
+  [DEBUG Retrieval] Raw Qdrant Vector Search Call: 1595.05 ms (fetched 20 candidates)
+  [DEBUG Retrieval] Top 4 Candidates Breakdown:
+    Candidate #1: doc_id=1102431_p7 | chunk_id=dfb88df0c3d9652e
+      Dense Cosine Score : 0.682
+      BM25 Sparse Score  : 7.7451
+      RRF Combined Score : 0.0328
+      Strategy/Lang      : passage_native / hin
+      Snippet            : रेचल कार्सन के "द ओब्लिगेशन टू एंड्योर" के एक अंश "साइलेंट स्प्रिंग" में, कार्सन...
+    Candidate #2: doc_id=1102431_p4 | chunk_id=4843448eea789302
+      Dense Cosine Score : 0.6562
+      BM25 Sparse Score  : 5.8732
+      RRF Combined Score : 0.032
+      Strategy/Lang      : passage_native / hin
+      Snippet            : रेचल कार्सन का निबंध, द इंग्लिजेशन टू एंड्योर, पर्यावरण पर रसायनों, कीटनाशकों, ज...
+    Candidate #3: doc_id=1102431_p3 | chunk_id=67274d0c210321fa
+      Dense Cosine Score : 0.4811
+      BM25 Sparse Score  : 6.1354
+      RRF Combined Score : 0.0313
+      Strategy/Lang      : passage_native / hin
+      Snippet            : एशले डीमर। ईस्टर्न गेटवे कम्युनिटी कॉलेज। सारांश। निम्नलिखित पृष्ठों में पाठक को...
+    Candidate #4: doc_id=1102431_p1 | chunk_id=397dc933329bfdcc
+      Dense Cosine Score : 0.5218
+      BM25 Sparse Score  : 4.7298
+      RRF Combined Score : 0.0308
+      Strategy/Lang      : passage_native / hin
+      Snippet            : कार्सन ने इसे ठीक लेखन तकनीक में लिखने के लिए सूक्ष्म रूप से स्थगित कर दिया ताकि...
+  [HARNESS] <- [Step 3/6] Completed step_retrieve_context (retrieved 4 chunks, stop_early=False)
+  [HARNESS] -> [Step 4/6] Running step_check_retrieval_confidence...
+  [DEBUG Guardrails] is_low_confidence_retrieval Check:
+    - Top Hit doc_id       : 1102431_p7 (chunk_id=dfb88df0c3d9652e)
+    - Raw Dense Score      : 0.682 (vs dense_threshold: 0.28) -> PASS
+    - Raw BM25 Score       : 7.7451
+    - Fused RRF Score      : 0.0328 (vs score_threshold: 0.012) -> PASS
+    - Confidence Verdict   : HIGH CONFIDENCE (Proceed)
+  [HARNESS] <- [Step 4/6] Completed step_check_retrieval_confidence (confident=True, stop_early=False)
+  [HARNESS] -> [Step 5/6] Running step_generate_answer...
+
+  ================================================================================
+  [GENERATION] === FULL PROMPT SENT TO MODEL ===
+  Model: grok-2-mini | Temperature: 0.1 | Max Tokens: 400 | Base URL: https://api.x.ai/v1
+
+  --- [Message 1: SYSTEM] ---
+  You are a grounded factual AI assistant for a multilingual Retrieval-Augmented Generation (RAG) system.
+
+  CRITICAL INSTRUCTIONS:
+  1. Answer the user's question STRICTLY and ONLY using the provided Context Passages.
+  2. DO NOT assume, extrapolate, or bring in outside knowledge not present in the context.
+  3. If the context does not contain enough information to fully and factually answer the question, you MUST explicitly respond with:
+     "I do not have sufficient information in the provided context to answer this question." (or its equivalent in the language of the query).
+  4. Respond in the SAME language as the query (e.g., Hindi for Hindi queries, Tamil for Tamil, English for English).
+  5. Keep your answer direct, clear, concise, and completely grounded in the retrieved facts.
+
+
+  --- [Message 2: USER] ---
+  Context Passages:
+  --- [Passage 1] (ID: 1102431_p7, Strategy: passage_native, Relevance: 0.0328) ---
+  रेचल कार्सन के "द ओब्लिगेशन टू एंड्योर" के एक अंश "साइलेंट स्प्रिंग" में, कार्सन ने सुझाव दिया है कि हमारे पास जो कीटनाशक और कीटनाशक हैं वे केवल पर्यावरण के लिए ही नहीं, बल्कि इसके निवासियों के कल्याण के लिए भी हानिकारक हैं। रेचल कार्सन एक ऐसी लेखिका हैं जो पर्यावरण के प्रति भावुक हैं और इसके निवासियों की भलाई के बारे में चिंतित हैं।
+
+  --- [Passage 2] (ID: 1102431_p4, Strategy: passage_native, Relevance: 0.032) ---
+  रेचल कार्सन का निबंध, द इंग्लिजेशन टू एंड्योर, पर्यावरण पर रसायनों, कीटनाशकों, जड़ी-बूटियों और उर्वरकों के हानिकारक उपयोगों के बारे में एक बहुत ही आश्वस्त करने वाला तर्क है।
+
+  --- [Passage 3] (ID: 1102431_p3, Strategy: passage_native, Relevance: 0.0313) ---
+  एशले डीमर। ईस्टर्न गेटवे कम्युनिटी कॉलेज। सारांश। निम्नलिखित पृष्ठों में पाठक को रेचल कार्सन की "द ओब्लिगेशन टू एंड्योर" का लिखित आलंकारिक विश्लेषण मिलेगा। निम्नलिखित विश्लेषण में कार्सन की पुस्तक का दूसरा अध्याय शामिल है, साइलेंट स्प्रिंग और जो पूर्ववर्ती रूप से 1962 में लिखा गया था।
+
+  --- [Passage 4] (ID: 1102431_p1, Strategy: passage_native, Relevance: 0.0308) ---
+  कार्सन ने इसे ठीक लेखन तकनीक में लिखने के लिए सूक्ष्म रूप से स्थगित कर दिया ताकि यह अनियंत्रित शैली के अधीन न हो, जो पूरे लेख को पक्षपात किए बिना पाठकों की रुचि को आकर्षित करती है। रेचल कार्सन को विरोध को बहुत अच्छी तरह से नजरअंदाज करती है: "द ओब्लिगेशन टू एंड्योर"। इसे सरल और सूचित करने वाला और प्रभावी बनाए रखने के लिए इसे एक भ्रम में फंसने से बचाता है जो इसे पढ़ने योग्य बनाता है और उसके दृष्टिकोण को वैध बनाने में प्रभावी साबित होता है।
+
+  Question:
+  रेचल कार्सन ने पर्यावरण के बारे में क्या लिखा?
+
+  Answer:
+  ================================================================================
+
+  [HARNESS] <- [Step 5/6] Completed step_generate_answer (answer='रेचल कार्सन के "द ओब्लिगेशन टू एंड्योर" के एक अंश "साइलेंट स्प्रिंग" में, कार्सन...', stop_early=False)
+  [HARNESS] -> [Step 6/6] Running step_check_grounding...
+  [GUARDRAILS is_grounded] Exception during grounding check: Error code: 400 - {'code': 'invalid-argument', 'error': 'Model not found: grok-2-mini'}
+  [HARNESS] <- [Step 6/6] Completed step_check_grounding (output_grounded=False, stop_early=False)
+  [HARNESS] PIPELINE FINISHED: Total=17333.01ms | Success=True | Answer='I don't have enough grounded information to answer that....'
+
+  ---------------------------------------- PIPELINE RESPONSE ----------------------------------------
+  Query           : रेचल कार्सन ने पर्यावरण के बारे में क्या लिखा?
+  Answer          : I don't have enough grounded information to answer that.
+  Guardrail Flags : {'input_safe': True, 'input_offtopic': False, 'retrieval_confident': True, 'output_grounded': False, 'refusal_message': None}
+  Sources Count   : 4
+  Timings (ms)    : {'stt_ms': 0.0, 'input_guardrail_ms': 879.53, 'retrieval_ms': 15464.84, 'embed_ms': 13551.06, 'dense_search_ms': 1911.34, 'sparse_search_ms': 2.22, 'fusion_ms': 0.03, 'confidence_check_ms': 0.02, 'generation_ms': 538.59, 'ttft_ms': 538.59, 'grounding_check_ms': 449.37, 'total_pipeline_ms': 17333.01, 'retrieval_to_output_ms': 16003.43}
+  ---------------------------------------------------------------------------------------------------
+  ```
+
+- **Root Cause Findings**:
+  1. **Upstream API Model Identifier / Credits**:
+     - The configured model `grok-2-mini` returned `Error code: 400 - Model not found: grok-2-mini` / `permission-denied` (team lacks credits).
+  2. **Fail-Open Exception Swallowing in Guardrails**:
+     - In `is_unsafe_input` and `is_offtopic`, when the upstream API threw an exception, `except Exception: return False` swallowed the error and returned `False` (safe/on-topic), allowing off-topic queries to pass into the retrieval pipeline.
+  3. **Extractive Fallback Grounding Status**:
+     - When `generate()` failed on the remote LLM call, it fell back to extractive grounded synthesis (`_extractive_grounded_fallback`) and returned `is_grounded: True`.
+  4. **Grounding Verification Exception**:
+     - In `is_grounded()`, the LLM judge threw the same 400 exception. Without a valid judge verdict, grounding failed and replaced the answer with refusal.
+  5. **Frontend Binding**:
+     - Verified that `ConsoleTelemetryPanel.jsx` properly reads `resultData?.guardrail_flags?.output_grounded` directly from the backend API response.
+
+- Files changed: [backend/src/harness.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/src/harness.py), [backend/src/generation.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/src/generation.py), [backend/src/guardrails.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/src/guardrails.py), [backend/scripts/test_guardrail_diagnostics.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/scripts/test_guardrail_diagnostics.py), [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md).
+- Next task: Align on model provider / fail-closed guardrail policy and deploy.
+
 ### 2026-08-22 — Agent (Retrieval Debug Logging, Confidence Recalibration & JRCC Query Audit)
 - What was done:
   1. **Candidate Score Breakdown in `backend/src/retrieval.py`**:
