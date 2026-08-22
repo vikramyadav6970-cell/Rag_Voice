@@ -25,8 +25,15 @@ from src.harness import run_rag_pipeline
 
 TEST_CASES = [
     {
-        "name": "TEST 1: OFF-TOPIC CONVERSATIONAL QUERY",
+        "name": "TEST 1A: OFF-TOPIC QUERY ('what\\'s your favorite color')",
         "query": "what's your favorite color",
+        "lang": "en",
+        "strategy": "passage_native",
+        "expected": "Refused at Step 2 (input_offtopic=True)",
+    },
+    {
+        "name": "TEST 1B: OFF-TOPIC QUERY WITH TYPO ('what is you favourite color')",
+        "query": "what is you favourite color",
         "lang": "en",
         "strategy": "passage_native",
         "expected": "Refused at Step 2 (input_offtopic=True)",

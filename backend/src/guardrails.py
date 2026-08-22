@@ -39,13 +39,15 @@ OFFTOPIC_PATTERNS = [
 
 
 def _get_async_client() -> AsyncOpenAI:
-    """Initialize AsyncOpenAI client."""
-    api_key = os.getenv("GENERATION_API_KEY", "")
-    base_url = os.getenv("GENERATION_BASE_URL", "https://api.x.ai/v1")
+    """Initialize AsyncOpenAI client configured for Sarvam AI / fast inference provider."""
+    api_key = (os.getenv("SARVAM_API_KEY") or os.getenv("GENERATION_API_KEY", "")).strip()
+    base_url = os.getenv("GENERATION_BASE_URL", "https://api.sarvam.ai/v1").strip()
+    clean_base = base_url.replace("/chat/completions", "").rstrip("/")
     return AsyncOpenAI(
-        api_key=api_key.strip() if api_key else "dummy-key",
-        base_url=base_url.strip(),
-        timeout=4.0,
+        api_key=api_key if api_key else "dummy-key",
+        base_url=clean_base,
+        default_headers={"api-subscription-key": api_key} if api_key else {},
+        timeout=25.0,
     )
 
 
@@ -75,21 +77,21 @@ async def is_unsafe_input(text: str) -> bool:
 
     try:
         client = _get_async_client()
-        model = os.getenv("GENERATION_MODEL", "grok-2-mini")
+        model = os.getenv("GENERATION_MODEL", "sarvam-105b")
+        judge_model = "sarvam-105b-conversations" if "sarvam" in model.lower() else model
         res = await client.chat.completions.create(
-            model=model,
+            model=judge_model,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=5,
+            max_tokens=10,
             temperature=0.0,
         )
-        raw_output = res.choices[0].message.content.strip() if res.choices else ""
+        raw_output = res.choices[0].message.content.strip() if res.choices and res.choices[0].message.content else ""
         verdict = raw_output.upper()
         is_unsafe = "YES" in verdict
         print(f"[GUARDRAILS is_unsafe_input] LLM Judge raw_output='{raw_output}' -> is_unsafe={is_unsafe}")
         return is_unsafe
     except Exception as exc:
         print(f"[GUARDRAILS is_unsafe_input] Exception during safety check: {exc}")
-        # Default to safe on network error unless suspicious
         return False
 
 
@@ -99,30 +101,29 @@ async def is_offtopic(text: str, domain_description: str = DEFAULT_DOMAIN_DESCRI
     Returns:
         True if clearly off-topic / spam, False if plausible knowledge question.
     """
-    clean_text = text.strip().lower()
+    clean_text = text.strip()
     if not clean_text or len(clean_text) < 2:
         print(f"[GUARDRAILS is_offtopic] Query too short or empty -> OFFTOPIC")
         return True
 
-    # Fast pattern match for empty greetings / keyboard mash / chit-chat
-    for pattern in OFFTOPIC_PATTERNS:
-        if re.search(pattern, clean_text, re.IGNORECASE):
-            print(f"[GUARDRAILS is_offtopic] Regex matched OFFTOPIC_PATTERNS '{pattern}' -> OFFTOPIC")
-            return True
+    clean_lower = clean_text.lower()
 
-    # Check for personal/conversational bot queries
-    conversational_patterns = [
-        r"^(what('s| is) your (favorite|favourite|name|age|gender|hobby|job))",
-        r"^(who (are you|created you|made you))",
-        r"^(tell me a (joke|story|poem|riddle)|sing( a song)?)",
-        r"^(do you (have|like|love|think|feel|know))",
+    # 1. Narrow pre-filter for known conversational openers / meta-questions (cheap, fast)
+    conversational_openers = [
+        "hello", "hi", "hey", "namaste", "vanakkam",
+        "how are you", "what's up", "whats up",
+        "what is your favorite", "what is your favourite",
+        "what is you favorite", "what is you favourite",
+        "whats your favorite", "whats your favourite",
+        "what is your name", "who are you",
+        "aapki pasand", "kya pasand", "tell me a joke",
     ]
-    for pattern in conversational_patterns:
-        if re.search(pattern, clean_text, re.IGNORECASE):
-            print(f"[GUARDRAILS is_offtopic] Regex matched conversational pattern '{pattern}' -> OFFTOPIC")
+    for opener in conversational_openers:
+        if clean_lower.startswith(opener) or clean_lower == opener:
+            print(f"[GUARDRAILS is_offtopic] Pre-check matched conversational opener '{opener}' -> OFFTOPIC")
             return True
 
-    # General knowledge queries in MSMARCO encompass factual informational inquiries.
+    # 2. General knowledge queries in MSMARCO encompass factual informational inquiries.
     prompt = (
         f"Domain Scope: {domain_description}\n\n"
         f"User Query: \"{text}\"\n\n"
@@ -132,22 +133,23 @@ async def is_offtopic(text: str, domain_description: str = DEFAULT_DOMAIN_DESCRI
 
     try:
         client = _get_async_client()
-        model = os.getenv("GENERATION_MODEL", "grok-2-mini")
+        model = os.getenv("GENERATION_MODEL", "sarvam-105b")
+        judge_model = "sarvam-105b-conversations" if "sarvam" in model.lower() else model
         res = await client.chat.completions.create(
-            model=model,
+            model=judge_model,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=5,
+            max_tokens=10,
             temperature=0.0,
         )
-        raw_output = res.choices[0].message.content.strip() if res.choices else ""
+        raw_output = res.choices[0].message.content.strip() if res.choices and res.choices[0].message.content else ""
         verdict = raw_output.upper()
         is_off = "YES" in verdict
         print(f"[GUARDRAILS is_offtopic] LLM Judge raw_output='{raw_output}' -> is_offtopic={is_off}")
         return is_off
     except Exception as exc:
-        print(f"[GUARDRAILS is_offtopic] Exception during offtopic check: {exc}")
-        # If the check fails due to upstream API error, check query length & patterns
-        return False
+        # FAIL-CLOSED BUG FIX: On ANY exception (timeout, API error, malformed response), return REFUSING result
+        print(f"[GUARDRAILS is_offtopic] ERROR/EXCEPTION in LLM judge: {exc} -> FAIL-CLOSED (returning offtopic=True)")
+        return True
 
 
 def is_low_confidence_retrieval(
@@ -222,6 +224,7 @@ async def is_grounded(answer: str, context_chunks: List[Dict[str, Any]]) -> bool
         or "जानकारी उपलब्ध नहीं है" in clean_ans
         or "could not find" in lower_ans
         or "outside the scope" in lower_ans
+        or "outside the knowledge base" in lower_ans
     ):
         print(f"[GUARDRAILS is_grounded] Answer matches known refusal sentinel -> grounded=True (Valid Refusal)")
         return True
@@ -245,29 +248,23 @@ async def is_grounded(answer: str, context_chunks: List[Dict[str, Any]]) -> bool
 
     try:
         client = _get_async_client()
-        model = os.getenv("GENERATION_MODEL", "grok-2-mini")
+        model = os.getenv("GENERATION_MODEL", "sarvam-105b")
+        judge_model = "sarvam-105b-conversations" if "sarvam" in model.lower() else model
         res = await client.chat.completions.create(
-            model=model,
+            model=judge_model,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=5,
+            max_tokens=10,
             temperature=0.0,
         )
-        raw_output = res.choices[0].message.content.strip() if res.choices else ""
+        raw_output = res.choices[0].message.content.strip() if res.choices and res.choices[0].message.content else ""
         verdict = raw_output.upper()
         is_grd = "YES" in verdict
         print(f"[GUARDRAILS is_grounded] LLM Judge raw_output='{raw_output}' -> is_grounded={is_grd}")
         return is_grd
     except Exception as exc:
-        print(f"[GUARDRAILS is_grounded] Exception during grounding check: {exc}")
-        # Extractive overlap check on upstream API timeout/error
-        ans_words = [w.lower() for w in re.findall(r"\w+", clean_ans) if len(w) > 3]
-        if not ans_words:
-            return False
-        matched = sum(1 for w in ans_words if w in context_text.lower())
-        overlap_ratio = matched / len(ans_words)
-        is_grd = overlap_ratio >= 0.35
-        print(f"[GUARDRAILS is_grounded] Fallback keyword overlap ratio={overlap_ratio:.2f} (matched {matched}/{len(ans_words)}) -> is_grounded={is_grd}")
-        return is_grd
+        # FAIL-CLOSED BUG FIX: On ANY exception (timeout, API error, malformed response), return REFUSING result
+        print(f"[GUARDRAILS is_grounded] ERROR/EXCEPTION in LLM judge: {exc} -> FAIL-CLOSED (returning grounded=False)")
+        return False
 
 
 

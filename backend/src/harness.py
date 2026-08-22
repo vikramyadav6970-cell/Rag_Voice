@@ -140,7 +140,12 @@ class RAGPipelineHarness:
                     ctx.answer = "This question is outside the scope of the knowledge base."
                     ctx.stop_early = True
         except Exception as exc:
+            # FAIL-CLOSED: On any input guardrail hook failure, refuse and stop early
+            print(f"[HARNESS ERROR] Input guardrail failed: {exc} -> FAIL-CLOSED (Refusing)")
             ctx.errors["input_guardrail"] = str(exc)
+            ctx.guardrail_flags["input_offtopic"] = True
+            ctx.answer = "This question is outside the scope of the knowledge base."
+            ctx.stop_early = True
         finally:
             ctx.timings_ms["input_guardrail_ms"] = round((time.perf_counter() - t_0) * 1000, 2)
 
@@ -255,7 +260,11 @@ class RAGPipelineHarness:
                 if not is_grounded:
                     ctx.answer = "I don't have enough grounded information to answer that."
         except Exception as exc:
+            # FAIL-CLOSED: On any grounding check failure, mark ungrounded and refuse
+            print(f"[HARNESS ERROR] Grounding guardrail failed: {exc} -> FAIL-CLOSED (ungrounded)")
             ctx.errors["grounding_guardrail"] = str(exc)
+            ctx.guardrail_flags["output_grounded"] = False
+            ctx.answer = "I don't have enough grounded information to answer that."
         finally:
             ctx.timings_ms["grounding_check_ms"] = round((time.perf_counter() - t_0) * 1000, 2)
 

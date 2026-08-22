@@ -46,7 +46,7 @@ unit — treat that as your baseline chunk, not your only chunk.
 | STT | Sarvam (Saaras v3) | Indic-language + code-mix native, streaming, sub-150ms TTFT | ElevenLabs — weaker on Indic/code-mixed audio |
 | Embeddings | bge-m3 (multilingual) | Covers all dataset languages, strong multilingual retrieval | English-only models (e5-small etc.) — wrong fit for Indic content |
 | Vector DB | Qdrant Cloud | Managed AWS instance, metadata filtering, hybrid search, persistence | FAISS-only (no persistence/filtering); Pinecone |
-| Generation | xAI `grok-2-mini` (OpenAI-compatible API) | Ultra-fast TTFT, low latency, strong multilingual reasoning | Large slow models exceeding latency budget |
+| Generation | Sarvam AI `sarvam-105b` (OpenAI-compatible API) | Already-authenticated account, OpenAI-compatible, native Indic mastery, avoids provisioning new providers under deadline pressure | xAI / Groq — unprovisioned / quota-exhausted |
 | Harness | LangGraph (or FastAPI state machine) | Explicit nodes, retries, structured state | Raw prompt-in/text-out call — disallowed by spec |
 | Backend | Python (FastAPI) | Best library support for RAG/embeddings/vector DB clients | — |
 | Frontend | React (Vite) | Explicit requirement | Next.js — not required here |

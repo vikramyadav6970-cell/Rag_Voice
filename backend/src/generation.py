@@ -20,8 +20,8 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 # Constants & Default Configurations
-DEFAULT_MODEL = os.getenv("GENERATION_MODEL", "grok-2-mini")
-DEFAULT_BASE_URL = os.getenv("GENERATION_BASE_URL", "https://api.x.ai/v1")
+DEFAULT_MODEL = os.getenv("GENERATION_MODEL", "sarvam-105b")
+DEFAULT_BASE_URL = os.getenv("GENERATION_BASE_URL", "https://api.sarvam.ai/v1")
 
 # Standardized Grounding Refusal Sentinels
 REFUSAL_PHRASE_EN = "I do not have sufficient information in the provided context to answer this question."
@@ -40,13 +40,15 @@ CRITICAL INSTRUCTIONS:
 
 
 def _get_async_openai_client() -> AsyncOpenAI:
-    """Initialize AsyncOpenAI client configured for xAI / fast inference provider."""
-    api_key = os.getenv("GENERATION_API_KEY", "")
-    base_url = os.getenv("GENERATION_BASE_URL", DEFAULT_BASE_URL)
+    """Initialize AsyncOpenAI client configured for Sarvam AI / fast inference provider."""
+    api_key = (os.getenv("SARVAM_API_KEY") or os.getenv("GENERATION_API_KEY", "")).strip()
+    base_url = os.getenv("GENERATION_BASE_URL", DEFAULT_BASE_URL).strip()
+    clean_base = base_url.replace("/chat/completions", "").rstrip("/")
     return AsyncOpenAI(
-        api_key=api_key.strip() if api_key else "dummy-key",
-        base_url=base_url.strip(),
-        timeout=10.0,
+        api_key=api_key if api_key else "dummy-key",
+        base_url=clean_base,
+        default_headers={"api-subscription-key": api_key} if api_key else {},
+        timeout=30.0,
     )
 
 
@@ -259,9 +261,10 @@ async def generate(
 
     try:
         client = _get_async_openai_client()
+        call_model = "sarvam-105b-conversations" if "sarvam" in active_model.lower() else active_model
         answer, ttft_ms = await _execute_llm_completion(
             client=client,
-            model=active_model,
+            model=call_model,
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
