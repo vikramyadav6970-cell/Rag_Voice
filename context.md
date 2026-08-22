@@ -54,7 +54,7 @@ unit — treat that as your baseline chunk, not your only chunk.
 
 ## Team / links (fill in)
 
-- GitHub repo: Local Git initialized (`main`)
+- GitHub repo: https://github.com/vikramyadav6970-cell/Rag_Voice.git
 - Live deployed link: `<pending deployment>`
 - Sarvam API: Configured in `backend/.env` (Saaras v3)
 - Vector DB instance URL: Qdrant Cloud (`aws.cloud.qdrant.io` configured in `backend/.env`)
