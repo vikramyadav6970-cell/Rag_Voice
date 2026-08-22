@@ -339,9 +339,9 @@ def run_ingest(
         points: List[models.PointStruct] = []
         for chunk_item, h in zip(chunk_batch, hash_batch):
             chunk_id = chunk_item["chunk_id"]
-            point_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, chunk_id))
             strat = chunk_item["strategy"]
             lang = chunk_item["language"]
+            point_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{lang}:{chunk_id}"))
 
             strategy_counts[strat] = strategy_counts.get(strat, 0) + 1
             lang_counts[lang] = lang_counts.get(lang, 0) + 1

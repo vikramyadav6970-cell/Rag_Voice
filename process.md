@@ -11,17 +11,65 @@ Keep entries short. Newest at the top.
 
 ## STATUS SNAPSHOT (always keep this section current — overwrite, don't append)
 
-- **Current phase**: Phase 7 — Deployment
+- **Current phase**: Phase 1 & 7 — Ingestion Consolidation & Deployment
 - **Blocking issue**: none
-- **Next immediate task**: Task 7.1 — Backend deployment (`backend/Dockerfile`, Render/Railway)
-- **Dataset subset in use**: Hindi (`hin`) complete + Tamil (`tam`), 6,496 points indexed in Qdrant Cloud (`msmarco_indic_rag`)
+- **Next immediate task**: Clean Colab reingestion for Hindi with `--recreate`, verify with `verify_collection.py`, then ingest subsequent languages without `--recreate`.
+- **Dataset subset in use**: Hindi (`hin`) + Tamil (`tam`), 6,496 points currently in Qdrant Cloud (`msmarco_indic_rag`) pending clean `--recreate` reingest.
 - **Deployed?**: no
 
 ---
 
 ## LOG (append new entries at the top, most recent first)
 
-### 2026-08-22 — Agent (GPU Acceleration & Hindi Dataset Ingestion)
+### 2026-08-22 — Agent (Ingestion Consolidation, Language Namespacing & Collection Audit)
+- What was done:
+  1. **Consolidated Ingestion Pipeline on `backend/scripts/ingest.py`**:
+     - Deleted `backend/scripts/ingest_hindi_complete.py` (and legacy single-strategy ingest scripts) which bypassed `chunking.py`, only indexed `passage_native`, and used an incompatible MD5 point-ID scheme. All ingestion now strictly uses `ingest.py` (supporting all 4 chunking strategies: `passage_native`, `fixed_size`, `semantic`, `hierarchical`, GPU fp16 acceleration, and MD5 text deduplication).
+  2. **Fixed Cross-Language Point ID Collision Bug in `ingest.py`**:
+     - Previously, point IDs were generated via `uuid.uuid5(uuid.NAMESPACE_DNS, chunk_id)` where `doc_id` was `f"{query_id}_p{p_idx}"`. If `query_id` numbering overlaps across different language parquet files, chunks from different languages could collide on identical point IDs and silently overwrite each other in Qdrant.
+     - Updated point UUID generation to hash on `f"{lang}:{chunk_id}"` (`uuid.uuid5(uuid.NAMESPACE_DNS, f"{lang}:{chunk_id}")`). Uniqueness is now mathematically guaranteed across all languages regardless of query ID numbering.
+  3. **Created Collection Verification & Audit Tool (`backend/scripts/verify_collection.py`)**:
+     - Built a standalone audit script that scrolls the active Qdrant collection, verifies total point counts against cluster metadata, computes percentage breakdowns across languages and chunking strategies, and prints formatted payload samples.
+     - Ran initial collection audit:
+       ```
+       ======================================================================
+       QDRANT COLLECTION AUDIT & VERIFICATION
+       Collection Name : msmarco_indic_rag
+       Target Instance : https://9707a72d-ec7d-4013-b2f7-afd50c4861fe.us-west-2-0.aws.cloud.qdrant.io
+       ======================================================================
+       [Collection Status: green]
+       Reported Points Count: 6,496
+       Reported Vectors Count: 6,496
+       Total Scrolled Points : 6,496 (Audit matches reported: True)
+       Scroll Time Elapsed   : 22.59s
+
+       --- Language Distribution ---
+         - hin         :  4,377 points ( 67.4%)
+         - tam         :  2,119 points ( 32.6%)
+
+       --- Strategy Distribution ---
+         - passage_native        :  1,813 points ( 27.9%)
+         - semantic              :  1,530 points ( 23.6%)
+         - hierarchical_child    :  1,396 points ( 21.5%)
+         - fixed_size            :    904 points ( 13.9%)
+         - hierarchical_parent   :    853 points ( 13.1%)
+       ======================================================================
+       ```
+  4. **`--recreate-once` Ingestion Rule & Idempotency Strategy**:
+     - **Recreate Once**: Because legacy data in Qdrant contains mixed schemas from old single-strategy scripts (e.g. `hin_msmarco_...` doc IDs), the **very next Hindi ingestion run must be executed with `--recreate`** to start with a clean collection schema and payload indices.
+     - **Subsequent Runs**: Every run AFTER the clean recreation (including Tamil and all future languages) **must NOT use `--recreate`**. The new `f"{lang}:{chunk_id}"` UUID5 namespace ensures safe coexistence and idempotent upserts (re-running the same language/limit will not duplicate points, and different languages will not overwrite each other).
+- Files changed:
+  - Deleted: [backend/scripts/ingest_hindi_complete.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/scripts/ingest_hindi_complete.py)
+  - Modified: [backend/scripts/ingest.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/scripts/ingest.py)
+  - Created: [backend/scripts/verify_collection.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/scripts/verify_collection.py)
+  - Modified: [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md)
+- What was verified/tested:
+  - Ran pytest suite: `pytest backend/tests` — **27/27 tests passed** in 119s.
+  - Ran `backend/scripts/verify_collection.py` against live Qdrant Cloud cluster — verified audit scroll of all 6,496 points in 22.59s.
+- Today's execution plan:
+  1. Recreate + reingest Hindi cleanly via Google Colab / GPU (T4 GPU, fp16 half-precision, batch size 64) with `--recreate`.
+  2. Run `backend/scripts/verify_collection.py` and paste the verified output into `process.md`.
+  3. Reingest Tamil (`tam`) and any subsequent languages without `--recreate`, verifying each step with `verify_collection.py`.
 - What was done: Upgraded `backend/scripts/ingest.py` with GPU acceleration, CPU fallback, and MD5 text deduplication.
   - **Device Detection**: Added explicit compute device detection (`torch.cuda.is_available()` / ONNX CUDA provider) with hardware name, VRAM logging, and non-silent fallback.
   - **Precision & OOM Tuning**: Added fp16 half-precision (`model.half()`) for CUDA VRAM optimization (RTX 3050 target) and adaptive batch fallback (32 -> 16 -> 8) with cache clearing on CUDA OOM.
