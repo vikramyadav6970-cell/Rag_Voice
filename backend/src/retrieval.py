@@ -105,8 +105,9 @@ def _execute_qdrant_search(
     query_vector: List[float],
     top_k: int,
     query_filter: Optional[models.Filter],
-) -> List[Any]:
-    """Execute dense vector query against Qdrant with exponential backoff retry."""
+) -> Tuple[List[Any], float]:
+    """Execute dense vector query against Qdrant with exponential backoff retry and measure raw call timing."""
+    t0 = time.perf_counter()
     if hasattr(client, "query_points"):
         res = client.query_points(
             collection_name=collection_name,
@@ -116,9 +117,9 @@ def _execute_qdrant_search(
             with_payload=True,
             with_vectors=False,
         )
-        return list(res.points) if hasattr(res, "points") else list(res)
+        hits = list(res.points) if hasattr(res, "points") else list(res)
     else:
-        return client.search(
+        hits = client.search(
             collection_name=collection_name,
             query_vector=query_vector,
             query_filter=query_filter,
@@ -126,6 +127,8 @@ def _execute_qdrant_search(
             with_payload=True,
             with_vectors=False,
         )
+    raw_ms = round((time.perf_counter() - t0) * 1000, 2)
+    return hits, raw_ms
 
 
 
@@ -156,6 +159,7 @@ async def retrieve(
     """
     total_start = time.perf_counter()
     timings: Dict[str, float] = {}
+    is_debug = os.getenv("DEBUG", "").strip().lower() in ("1", "true", "yes", "debug")
 
     clean_query = query.strip()
     if not clean_query:
@@ -196,11 +200,16 @@ async def retrieve(
     t_dense_0 = time.perf_counter()
     client = get_qdrant_client()
     fetch_limit = max(dense_fetch_k, top_k * 2)
-    dense_hits = await loop.run_in_executor(
+    dense_hits, raw_qdrant_ms = await loop.run_in_executor(
         None,
         lambda: _execute_qdrant_search(client, collection_name, query_vec, fetch_limit, qdrant_filter),
     )
+    timings["raw_qdrant_ms"] = raw_qdrant_ms
     timings["dense_search_ms"] = round((time.perf_counter() - t_dense_0) * 1000, 2)
+
+    if is_debug:
+        print(f"\n[DEBUG Retrieval] Query: \"{clean_query}\" (lang={language}, strat={strategy})")
+        print(f"[DEBUG Retrieval] Raw Qdrant Vector Search Call: {raw_qdrant_ms:.2f} ms (fetched {len(dense_hits)} candidates)")
 
     if not dense_hits:
         total_time = round((time.perf_counter() - total_start) * 1000, 2)
@@ -208,6 +217,8 @@ async def retrieve(
         timings["fusion_ms"] = 0.0
         timings["parent_resolution_ms"] = 0.0
         timings["total_retrieval_ms"] = total_time
+        if is_debug:
+            print("[DEBUG Retrieval] No dense hits returned from Qdrant.")
         return {
             "results": [],
             "timings_ms": timings,
@@ -222,6 +233,7 @@ async def retrieve(
     candidate_corpus = [_tokenize_indic_text(h.payload.get("text", "")) for h in dense_hits]
     bm25 = BM25Okapi(candidate_corpus)
     doc_scores = bm25.get_scores(query_tokens)
+    bm25_map: Dict[str, float] = {str(dense_hits[i].id): float(doc_scores[i]) for i in range(len(dense_hits))}
     sparse_scores = [(dense_hits[i], float(doc_scores[i])) for i in range(len(dense_hits))]
     timings["sparse_search_ms"] = round((time.perf_counter() - t_sparse_0) * 1000, 2)
 
@@ -236,10 +248,14 @@ async def retrieve(
     formatted_results: List[Dict[str, Any]] = []
 
     for hit, score in top_fused:
+        hit_id = str(hit.id)
         payload = dict(hit.payload or {})
         chunk_strategy = payload.get("strategy", "")
         parent_id = payload.get("parent_id")
         resolved_context = payload.get("text", "")
+        raw_dense = round(float(hit.score), 4) if hasattr(hit, "score") and hit.score is not None else None
+        raw_bm25 = round(float(bm25_map.get(hit_id, 0.0)), 4)
+        rrf_score = round(float(score), 4)
 
         # If child chunk, resolve parent passage for comprehensive generation context
         if parent_id and (chunk_strategy == "hierarchical_child" or "child" in chunk_strategy):
@@ -248,6 +264,7 @@ async def retrieve(
             else:
                 try:
                     # Query parent chunk from Qdrant by parent_id
+                    t_p_sub = time.perf_counter()
                     parent_points = await loop.run_in_executor(
                         None,
                         lambda pid=parent_id: client.scroll(
@@ -264,13 +281,16 @@ async def retrieve(
                         if parent_text:
                             _PARENT_CACHE[parent_id] = parent_text
                             resolved_context = parent_text
+                    if is_debug:
+                        print(f"  [DEBUG Retrieval] Parent resolution for pid={parent_id}: {(time.perf_counter() - t_p_sub)*1000:.2f}ms")
                 except Exception:
                     pass  # Fall back to child text on resolution error
 
         formatted_results.append({
-            "chunk_id": payload.get("chunk_id", str(hit.id)),
-            "score": round(float(score), 4),
-            "dense_score": round(float(hit.score), 4) if hasattr(hit, "score") and hit.score is not None else None,
+            "chunk_id": payload.get("chunk_id", hit_id),
+            "score": rrf_score,
+            "dense_score": raw_dense,
+            "bm25_score": raw_bm25,
             "text": payload.get("text", ""),
             "resolved_context": resolved_context,
             "strategy": chunk_strategy,
@@ -281,6 +301,17 @@ async def retrieve(
             "ground_truth_answer": payload.get("answer_ground_truth", ""),
             "metadata": payload,
         })
+
+    if is_debug:
+        print(f"[DEBUG Retrieval] Top {len(formatted_results)} Candidates Breakdown:")
+        for idx, item in enumerate(formatted_results, 1):
+            txt_prev = item["text"][:80].replace("\n", " ") + "..." if len(item["text"]) > 80 else item["text"]
+            print(f"  Candidate #{idx}: doc_id={item['source_doc_id']} | chunk_id={item['chunk_id']}")
+            print(f"    Dense Cosine Score : {item['dense_score']}")
+            print(f"    BM25 Sparse Score  : {item['bm25_score']}")
+            print(f"    RRF Combined Score : {item['score']}")
+            print(f"    Strategy/Lang      : {item['strategy']} / {item['language']}")
+            print(f"    Snippet            : {txt_prev}")
 
     timings["parent_resolution_ms"] = round((time.perf_counter() - t_parent_0) * 1000, 2)
     timings["total_retrieval_ms"] = round((time.perf_counter() - total_start) * 1000, 2)

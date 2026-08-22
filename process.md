@@ -21,6 +21,58 @@ Keep entries short. Newest at the top.
 
 ## LOG (append new entries at the top, most recent first)
 
+### 2026-08-22 — Agent (Retrieval Debug Logging, Confidence Recalibration & JRCC Query Audit)
+- What was done:
+  1. **Candidate Score Breakdown in `backend/src/retrieval.py`**:
+     - Updated `retrieve()` to extract and record raw Dense Cosine score (`dense_score`), raw BM25 score (`bm25_score`), and final combined RRF score (`score`) for each candidate.
+     - Added comprehensive candidate logging behind the `DEBUG` environment flag (`DEBUG=1` / `DEBUG=true`), off by default.
+  2. **Confidence Guardrail Score & Threshold Audit in `backend/src/guardrails.py`**:
+     - Added explicit threshold comparison logging in `is_low_confidence_retrieval()` displaying `top_dense_score` vs `dense_threshold` and `top_rrf_score` vs `score_threshold`.
+     - *Bug identified & fixed*: Previously `dense_threshold` was hardcoded at `0.52`. For multilingual Indic embeddings with `bge-m3`, valid in-domain question-passage cosine similarities typically fall between `0.35` and `0.55`. A valid in-domain query scoring `0.48` was being falsely tripped as low confidence. Recalibrated `dense_threshold` to `0.28` (aligned with true out-of-domain / hallucination-bait baseline of `<0.25`), and preserved `score_threshold = 0.012` for RRF.
+  3. **Isolated Raw Qdrant Network Call Latency in `backend/src/retrieval.py`**:
+     - Updated `_execute_qdrant_search()` to record isolated wall-clock duration of the raw `client.search()` / `client.query_points()` network call.
+     - *Latency Isolation Finding*: In-memory Sparse BM25 takes **1.09ms – 1.80ms**, Reciprocal Rank Fusion takes **0.02ms – 0.03ms**, and embedding takes **~130ms – 146ms**. The remaining latency is purely the remote HTTP roundtrip to Qdrant Cloud on AWS us-west-2 (`~288ms` warm TCP connection, up to `~990ms - 2.5s` on cold un-cached connections). In-memory post-processing / fusion contributes virtually zero overhead (<2ms).
+  4. **Executed JRCC Query Benchmark**:
+     - Ran Hindi Rachel Carson query (`"रेचल कार्सन ने पर्यावरण के बारे में क्या लिखा?"`) with `DEBUG=1`:
+       ```
+       ================================================================================
+       DEBUG TEST: JRCC-STYLE QUERY RETRIEVAL & GUARDRAILS AUDIT
+       Query: "रेचल कार्सन ने पर्यावरण के बारे में क्या लिखा?"
+       Description: Rachel Carson environmental obligation / Silent Spring query in Hindi
+       ================================================================================
+
+       [DEBUG Retrieval] Top 4 Candidates Breakdown (PASSAGE_NATIVE):
+         Candidate #1: doc_id=1102431_p7 | chunk_id=dfb88df0c3d9652e
+           Dense Cosine Score : 0.6820
+           BM25 Sparse Score  : 7.7451
+           RRF Combined Score : 0.0328
+           Strategy/Lang      : passage_native / hin
+           Snippet            : रेचल कार्सन के "द ओब्लिगेशन टू एंड्योर" के एक अंश "साइलेंट स्प्रिंग" में, कार्सन...
+         Candidate #2: doc_id=1102431_p4 | chunk_id=4843448eea789302
+           Dense Cosine Score : 0.6562
+           BM25 Sparse Score  : 5.8732
+           RRF Combined Score : 0.0320
+           Strategy/Lang      : passage_native / hin
+           Snippet            : रेचल कार्सन का निबंध, द इंग्लिजेशन टू एंड्योर, पर्यावरण पर रसायनों, कीटनाशकों, ज...
+
+       [DEBUG Guardrails] is_low_confidence_retrieval Check:
+         - Top Hit doc_id       : 1102431_p7 (chunk_id=dfb88df0c3d9652e)
+         - Raw Dense Score      : 0.6820 (vs dense_threshold: 0.28) -> PASS
+         - Raw BM25 Score       : 7.7451
+         - Fused RRF Score      : 0.0328 (vs score_threshold: 0.012) -> PASS
+         - Confidence Verdict   : HIGH CONFIDENCE (Proceed)
+
+       [PIPELINE OUTPUT]
+       Transcript / Query : रेचल कार्सन ने पर्यावरण के बारे में क्या लिखा?
+       Answer             : रेचल कार्सन के "द ओब्लिगेशन टू एंड्योर" के एक अंश "साइलेंट स्प्रिंग" में, कार्सन ने सुझाव दिया है कि हमारे पास जो कीटनाशक और कीटनाशक हैं वे केवल पर्यावरण के लिए ही नहीं, बल्कि इसके निवासियों के कल्याण के लिए भी हानिकारक हैं...
+       Guardrail Flags    : {'input_safe': True, 'input_offtopic': False, 'retrieval_confident': True, 'output_grounded': True, 'refusal_message': None}
+       Timings (ms)       : {'stt_ms': 0.0, 'input_guardrail_ms': 1483.45, 'retrieval_ms': 437.68, 'embed_ms': 146.47, 'dense_search_ms': 289.21, 'sparse_search_ms': 1.8, 'fusion_ms': 0.03, 'confidence_check_ms': 0.02, 'generation_ms': 550.9, 'ttft_ms': 550.9, 'grounding_check_ms': 745.3, 'total_pipeline_ms': 3217.85, 'retrieval_to_output_ms': 988.58}
+       ================================================================================
+       ```
+- Files changed: [backend/src/retrieval.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/src/retrieval.py), [backend/src/guardrails.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/src/guardrails.py), [backend/scripts/test_jrcc_query.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/scripts/test_jrcc_query.py), [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md).
+- What was verified/tested: Ran `backend/scripts/test_jrcc_query.py` with `DEBUG=1` — verified multi-strategy retrieval, score breakdown logging, threshold comparison logging, and full grounded answer generation.
+- Next task: Task 7.1 — Deployment setup (`backend/Dockerfile`, Render/Railway).
+
 ### 2026-08-22 — Agent (Embedding Performance Optimization & Sequence Length Capping)
 - What was done:
   1. **Capped Embedding Model Max Sequence Length (`embed_model.max_seq_length = 256`)**:

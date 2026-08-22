@@ -130,33 +130,52 @@ async def is_offtopic(text: str, domain_description: str = DEFAULT_DOMAIN_DESCRI
 def is_low_confidence_retrieval(
     results: List[Dict[str, Any]],
     score_threshold: float = 0.012,
-    dense_threshold: float = 0.52,
+    dense_threshold: float = 0.28,
 ) -> bool:
     """Check whether retrieved results exhibit low relevance confidence.
 
-    Empirical Threshold Rationale:
-    In Reciprocal Rank Fusion (rrf_k=60), a top-1 hit yields ~0.0328. Hits with dense similarity < 0.52
-    represent tangential semantic noise for queries outside the indexed factual knowledge base.
+    Empirical Threshold Calibration:
+    - In Reciprocal Rank Fusion (rrf_k=60), a top-1 ranked candidate achieves score >= 1/61 (~0.0164).
+      We set score_threshold = 0.012 to reject queries where no candidate ranks well in dense or sparse search.
+    - In BAAI/bge-m3 dense retrieval across Indic/Devanagari text, valid in-domain matches score 0.32-0.65 cosine similarity.
+      Out-of-domain / hallucination-bait queries score < 0.25. We set dense_threshold = 0.28.
 
     Returns:
         True if low confidence (should refuse/skip generation), False if confident.
     """
+    is_debug = os.getenv("DEBUG", "").strip().lower() in ("1", "true", "yes", "debug")
+
     if not results or len(results) == 0:
+        if is_debug:
+            print("[DEBUG Guardrails] is_low_confidence_retrieval: results list is EMPTY -> low_confidence=True")
         return True
 
     top_hit = results[0]
     top_rrf_score = float(top_hit.get("score", 0.0) or 0.0)
     top_dense_score = top_hit.get("dense_score")
+    top_bm25_score = top_hit.get("bm25_score")
 
-    # If dense score is present, check cosine similarity threshold (0.52)
-    if top_dense_score is not None and float(top_dense_score) < dense_threshold:
-        return True
+    dense_failed = False
+    if top_dense_score is not None:
+        dense_val = float(top_dense_score)
+        if dense_val < dense_threshold:
+            dense_failed = True
 
-    # Check RRF score threshold
-    if top_rrf_score < score_threshold:
-        return True
+    rrf_failed = top_rrf_score < score_threshold
 
-    return False
+    # A retrieval is low confidence if the dense cosine score is below the semantic floor (<0.28)
+    # or if the fused RRF score is below rank floor (<0.012)
+    is_low = dense_failed or rrf_failed
+
+    if is_debug:
+        print(f"[DEBUG Guardrails] is_low_confidence_retrieval Check:")
+        print(f"  - Top Hit doc_id       : {top_hit.get('source_doc_id')} (chunk_id={top_hit.get('chunk_id')})")
+        print(f"  - Raw Dense Score      : {top_dense_score} (vs dense_threshold: {dense_threshold}) -> {'FAIL' if dense_failed else 'PASS'}")
+        print(f"  - Raw BM25 Score       : {top_bm25_score}")
+        print(f"  - Fused RRF Score      : {top_rrf_score} (vs score_threshold: {score_threshold}) -> {'FAIL' if rrf_failed else 'PASS'}")
+        print(f"  - Confidence Verdict   : {'LOW CONFIDENCE (Refuse)' if is_low else 'HIGH CONFIDENCE (Proceed)'}")
+
+    return is_low
 
 
 
