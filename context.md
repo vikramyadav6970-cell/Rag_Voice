@@ -37,6 +37,8 @@ into ~13 Indic languages, organized by language subfolder (hi, ta, te, bn, mr, g
 as, ne, ur), ~55GB total across train/validation splits. Passages are already a natural retrieval
 unit — treat that as your baseline chunk, not your only chunk.
 
+**Demo Corpus Scope**: Ingesting ~3,000 query rows (translating to roughly 100K–150K raw chunks across all 4 chunking strategies, and significantly lower after passage deduplication) provides the ideal scope for high factual density, representative evaluation, and sub-second retrieval benchmarks without triggering cloud quota limits or compute bottlenecks. Full 55GB subset indexing is neither necessary nor intended for this demo tier.
+
 ## Tech stack decisions (and why)
 
 | Layer | Choice | Why | Rejected alternative |

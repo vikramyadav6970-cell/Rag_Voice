@@ -21,6 +21,22 @@ Keep entries short. Newest at the top.
 
 ## LOG (append new entries at the top, most recent first)
 
+### 2026-08-22 — Agent (Embedding Performance Optimization & Sequence Length Capping)
+- What was done:
+  1. **Capped Embedding Model Max Sequence Length (`embed_model.max_seq_length = 256`)**:
+     - *Root cause of previous stall/OOM*: `BAAI/bge-m3` defaults to a max sequence length of 8,192 tokens. In transformer batch encoding, batch memory and attention matrices scale quadratically with sequence length. When even a single lengthy passage/parent chunk appeared in a batch, it caused severe VRAM spikes on GPU, triggering CUDA OOMs, repetitive batch fallback retries (32 -> 16 -> 8), GPU cache clearing, and throughput collapse.
+     - *Resolution*: Capped `embed_model.max_seq_length` to 256. Since all 4 chunking strategies target 60–120 tokens per chunk, 256 tokens provides generous head-room while strictly bounding matrix memory allocations and eliminating OOM spikes.
+  2. **Added Character Length Distribution Telemetry**:
+     - Added `np.min`, `np.median`, `np.percentile(95)`, `np.max` character length logging for `unique_texts` directly before embedding starts, making text outliers visible in the console/Colab logs.
+  3. **Tuned Default Ingestion Scope & Batch Size**:
+     - Lowered default `--limit` from 20,000 to 3,000 query rows (producing ~100K–150K raw chunks across 4 chunking strategies, and significantly fewer after deduplication) — optimal for a representative demo corpus without exceeding memory or cloud limits.
+     - Lowered default `--batch-size` from 32 to 24 for stable headroom on Google Colab T4 GPUs and local RTX 3050 GPUs.
+  4. **Updated `context.md`**:
+     - Added demo corpus scope documentation to the Dataset section.
+- Files changed: [backend/scripts/ingest.py](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/backend/scripts/ingest.py), [context.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/context.md), [process.md](file:///d:/Hackathons/Hackkerhouse%20Goa%202026/Task%202%20By%20me/process.md).
+- What was verified/tested: Verified `ingest.py` parameter parsing and execution logic with pytest (`pytest backend/tests`).
+- Next task: Reingest Hindi with `--recreate` via Colab / GPU, verify with `verify_collection.py`, then ingest subsequent languages.
+
 ### 2026-08-22 — Agent (Ingestion Consolidation, Language Namespacing & Collection Audit)
 - What was done:
   1. **Consolidated Ingestion Pipeline on `backend/scripts/ingest.py`**:

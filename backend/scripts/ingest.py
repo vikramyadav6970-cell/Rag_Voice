@@ -160,7 +160,7 @@ def extract_chunks_from_record(
 def batch_encode_with_fallback(
     model: SentenceTransformer,
     texts: List[str],
-    initial_batch_size: int = 32,
+    initial_batch_size: int = 24,
 ) -> np.ndarray:
     """Batch embed passages with automatic CUDA OOM fallback tuning."""
     curr_batch_size = initial_batch_size
@@ -191,10 +191,10 @@ def batch_encode_with_fallback(
 def run_ingest(
     languages: List[str] = ["hin"],
     split: str = "val",
-    limit: int = 20000,
+    limit: int = 3000,
     collection_name: str = "msmarco_indic_rag",
     model_name: str = "BAAI/bge-m3",
-    batch_size: int = 32,
+    batch_size: int = 24,
     recreate: bool = False,
 ) -> None:
     """Execute complete end-to-end ingestion pipeline with GPU acceleration and passage deduplication."""
@@ -221,6 +221,13 @@ def run_ingest(
     t_model_start = time.time()
     embed_model = SentenceTransformer(model_name, device=device)
     
+    # Explicitly cap max sequence length to 256 tokens.
+    # Justification: Our chunking strategies target 60-120 tokens per chunk (child/fixed/passage),
+    # so nothing legitimate needs more than a few hundred tokens. bge-m3's default 8192 max sequence
+    # length was letting a handful of long native/parent chunks balloon batch VRAM allocation and compute
+    # for every batch they appeared in, causing severe slow-downs and CUDA OOMs.
+    embed_model.max_seq_length = 256
+
     # Load model in fp16 when on CUDA for RTX 3050 VRAM optimization
     if device == "cuda":
         print("  - Converting model weights to fp16 (model.half()) for optimized VRAM footprint and 2x throughput...")
@@ -228,7 +235,7 @@ def run_ingest(
 
     dim_getter = getattr(embed_model, "get_embedding_dimension", getattr(embed_model, "get_sentence_embedding_dimension", None))
     vector_size = dim_getter() if dim_getter else 1024
-    print(f"Model loaded in {time.time() - t_model_start:.2f}s (Vector dimension: {vector_size})\n")
+    print(f"Model loaded in {time.time() - t_model_start:.2f}s (Vector dimension: {vector_size}, Max Seq Length: {embed_model.max_seq_length})\n")
 
     # 2. Connect to Qdrant Cloud & Ensure Collection
     client = get_qdrant_client()
@@ -306,6 +313,17 @@ def run_ingest(
 
     # 5. Batched Embedding Computation
     print(f"\n--- Computing Embeddings ({device.upper()} / batch_size={batch_size}) ---")
+    
+    # Log character length distribution of unique texts to expose outliers
+    if unique_texts:
+        lengths = [len(t) for t in unique_texts]
+        min_len = int(np.min(lengths))
+        med_len = float(np.median(lengths))
+        p95_len = float(np.percentile(lengths, 95))
+        max_len = int(np.max(lengths))
+        print(f"Unique Text Lengths (chars): min={min_len:,} | median={med_len:.1f} | p95={p95_len:.1f} | max={max_len:,}")
+        print(f"Model Max Sequence Length: {embed_model.max_seq_length} tokens (capped for fast, bounded VRAM matrix operations)")
+
     t_embed_start = time.time()
 
     embeddings = batch_encode_with_fallback(
@@ -391,10 +409,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Ingest MSMARCO-XI subset into Qdrant Cloud with GPU acceleration")
     parser.add_argument("--languages", "-l", nargs="+", default=["hin"], help="Language codes (e.g. hin tam)")
     parser.add_argument("--split", default="val", choices=["val", "train"], help="Dataset split")
-    parser.add_argument("--limit", type=int, default=20000, help="Maximum number of query rows to read (default: 20000)")
+    parser.add_argument("--limit", type=int, default=3000, help="Maximum number of query rows to read (default: 3000)")
     parser.add_argument("--collection", "-c", default="msmarco_indic_rag", help="Qdrant collection name")
     parser.add_argument("--model", "-m", default="BAAI/bge-m3", help="Embedding model name")
-    parser.add_argument("--batch-size", "-b", type=int, default=32, help="Embedding batch size (default: 32)")
+    parser.add_argument("--batch-size", "-b", type=int, default=24, help="Embedding batch size (default: 24)")
     parser.add_argument("--recreate", action="store_true", help="Recreate Qdrant collection from scratch")
 
     args = parser.parse_args()
